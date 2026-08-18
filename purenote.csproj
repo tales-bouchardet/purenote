@@ -1,0 +1,41 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net48</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <RootNamespace>PureNote</RootNamespace>
+    <AssemblyName>purenote</AssemblyName>
+    <LangVersion>7.3</LangVersion>
+    <ApplicationIcon>icon.ico</ApplicationIcon>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <Product>purenote</Product>
+    <AssemblyTitle>purenote</AssemblyTitle>
+    <Company>tales.bouchardet</Company>
+    <Authors>tales.bouchardet</Authors>
+    <Copyright>tales.bouchardet</Copyright>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="WPF-UI" Version="4.3.0" />
+    <PackageReference Include="ILRepack" Version="2.0.44" GeneratePathProperty="true" ExcludeAssets="all" />
+  </ItemGroup>
+  <ItemGroup>
+    <Resource Include="icon.ico" />
+    <Resource Include="font\*.ttf" />
+  </ItemGroup>
+
+  <Target Name="SingleFile" AfterTargets="Build" Condition="'$(Configuration)' == 'Release'">
+    <PropertyGroup>
+      <SingleFileDir>$(MSBuildProjectDirectory)\publish</SingleFileDir>
+    </PropertyGroup>
+    <ItemGroup>
+      <MergeInput Include="$(TargetDir)$(TargetFileName)" />
+      <MergeInput Include="$(TargetDir)*.dll" />
+    </ItemGroup>
+    <MakeDir Directories="$(SingleFileDir)" />
+    <Exec Command="&quot;$(PkgILRepack)\tools\ILRepack.exe&quot; /out:&quot;$(SingleFileDir)\$(TargetFileName)&quot; /target:winexe /targetplatform:v4 @(MergeInput->'&quot;%(FullPath)&quot;', ' ')" />
+    <Message Importance="high" Text="Single file: $(SingleFileDir)\$(TargetFileName)" />
+  </Target>
+</Project>

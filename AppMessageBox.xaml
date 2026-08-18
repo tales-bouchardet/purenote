@@ -1,0 +1,41 @@
+<Window x:Class="PureNote.AppMessageBox"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="purenote" Width="380" SizeToContent="Height"
+        FontFamily="{StaticResource AppFont}"
+        WindowStyle="None" ResizeMode="NoResize" WindowStartupLocation="CenterOwner"
+        ShowInTaskbar="False" AllowsTransparency="True" Background="Transparent">
+    <Border Background="{StaticResource PopupBackground}" BorderBrush="{StaticResource PanelBorder}" BorderThickness="1" CornerRadius="8">
+        <Grid>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+            </Grid.RowDefinitions>
+
+            <Border Grid.Row="0" Background="{StaticResource ChromeBackground}" CornerRadius="8,8,0,0" Height="34"
+                    MouseLeftButtonDown="Header_MouseLeftButtonDown">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+                    <TextBlock x:Name="TitleText" Text="purenote" Foreground="{StaticResource PrimaryText}" FontWeight="SemiBold"
+                               VerticalAlignment="Center" Margin="12,0,0,0"/>
+                    <Button Grid.Column="1" Content="✕" Click="Close_Click" Width="34"
+                            Background="Transparent" BorderThickness="0" Foreground="{StaticResource MutedText}"/>
+                </Grid>
+            </Border>
+
+            <TextBlock Grid.Row="1" x:Name="MessageText" Foreground="{StaticResource EditorText}" TextWrapping="Wrap"
+                       FontSize="13" Margin="16,16,16,16"/>
+
+            <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right" Margin="16,0,16,16">
+                <Button x:Name="YesButton" Content="Yes" Click="Yes_Click" Padding="14,6" Margin="0,0,8,0"/>
+                <Button x:Name="NoButton" Content="No" Click="No_Click" Padding="14,6" Margin="0,0,8,0"/>
+                <Button x:Name="CancelButton" Content="Cancel" Click="Cancel_Click" Padding="14,6" Margin="0,0,8,0"/>
+                <Button x:Name="OkButton" Content="OK" Click="Ok_Click" Padding="14,6"/>
+            </StackPanel>
+        </Grid>
+    </Border>
+</Window>
