@@ -1,31 +1,40 @@
+using System;
 using System.Collections.Generic;
 using System.Text;
 using System.Windows;
 using System.Windows.Input;
+using System.Windows.Threading;
 
 namespace PureNote
 {
     public partial class MainWindow
     {
-        private readonly List<int> _replaceMatches = new List<int>();
-
         private void Replace_Click(object sender, RoutedEventArgs e)
         {
-            ReplacePopup.IsOpen = !ReplacePopup.IsOpen;
-
             if (ReplacePopup.IsOpen)
             {
-                FindPopup.IsOpen = false;
-                HighlightLayer.Children.Clear();
-                ReplaceStatusText.Text = "";
+                ReplaceClose_Click(sender, e);
+                return;
+            }
+
+            ReplacePopup.IsOpen = true;
+            FindPopup.IsOpen = false;
+            HighlightLayer.Children.Clear();
+            ReplaceStatusText.Text = "";
+
+            // Deferred: a top-level MenuItem click leaves the menu holding keyboard
+            // focus as it unwinds, which would take focus straight back off the box.
+            Dispatcher.BeginInvoke(DispatcherPriority.Input, new Action(() =>
+            {
                 ReplaceFindTextBox.Focus();
                 ReplaceFindTextBox.SelectAll();
-            }
+            }));
         }
 
         private void ReplaceClose_Click(object sender, RoutedEventArgs e)
         {
             ReplacePopup.IsOpen = false;
+            ReplaceStatusText.Text = "";
         }
 
         private void ReplaceTextBox_KeyDown(object sender, KeyEventArgs e)
@@ -79,9 +88,10 @@ namespace PureNote
             string replacement = ReplaceWithTextBox.Text;
             string text = Editor.Text;
 
-            TextSearch.FindAll(text, term, exact, _replaceMatches);
+            List<int> matches = new List<int>();
+            TextSearch.FindAll(text, term, exact, matches);
 
-            if (_replaceMatches.Count == 0)
+            if (matches.Count == 0)
             {
                 ReplaceStatusText.Text = "No matches";
                 return;
@@ -90,7 +100,7 @@ namespace PureNote
             StringBuilder sb = new StringBuilder(text.Length);
             int copiedUpTo = 0;
 
-            foreach (int start in _replaceMatches)
+            foreach (int start in matches)
             {
                 sb.Append(text, copiedUpTo, start - copiedUpTo);
                 sb.Append(replacement);
@@ -102,9 +112,9 @@ namespace PureNote
             int caret = Editor.SelectionStart;
             Editor.SelectAll();
             Editor.SelectedText = sb.ToString();
-            Editor.Select(caret < Editor.Text.Length ? caret : Editor.Text.Length, 0);
+            Editor.Select(Math.Min(caret, Editor.Text.Length), 0);
 
-            ReplaceStatusText.Text = $"{_replaceMatches.Count} replaced";
+            ReplaceStatusText.Text = $"{matches.Count} replaced";
         }
     }
 }

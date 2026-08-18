@@ -1,4 +1,5 @@
 using System;
+using System.IO;
 using System.Windows;
 
 namespace PureNote
@@ -7,7 +8,12 @@ namespace PureNote
     {
         private void Window_DragOver(object sender, DragEventArgs e)
         {
-            e.Effects = HasSingleFile(e) ? DragDropEffects.Copy : DragDropEffects.None;
+            // Only claim file drops. These are preview handlers on the window, so
+            // handling everything would tunnel past the editor and silently kill
+            // its built-in drag-and-drop of selected text.
+            if (GetDroppedFile(e) == null) return;
+
+            e.Effects = DragDropEffects.Copy;
             e.Handled = true;
         }
 
@@ -18,14 +24,13 @@ namespace PureNote
 
             e.Handled = true;
 
-            if (!ConfirmDiscardChanges()) return;
-
-            LoadFile(path);
-        }
-
-        private static bool HasSingleFile(DragEventArgs e)
-        {
-            return GetDroppedFile(e) != null;
+            // The source application's drag loop is blocked until this handler
+            // returns, so a modal prompt here would freeze Explorer. Let the drop
+            // finish first, then ask.
+            Dispatcher.BeginInvoke(new Action(() =>
+            {
+                if (ConfirmDiscardChanges()) LoadFile(path);
+            }));
         }
 
         private static string GetDroppedFile(DragEventArgs e)
@@ -37,7 +42,9 @@ namespace PureNote
                 string[] paths = e.Data.GetData(DataFormats.FileDrop) as string[];
                 if (paths == null || paths.Length == 0) return null;
 
-                return paths[0];
+                // A folder would otherwise reach File.ReadAllBytes and surface as a
+                // bogus "you do not have permission" error.
+                return File.Exists(paths[0]) ? paths[0] : null;
             }
             catch (Exception)
             {

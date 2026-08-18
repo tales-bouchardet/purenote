@@ -14,7 +14,10 @@ namespace PureNote
         {
             if (!ConfirmDiscardChanges()) return;
 
+            Editor.IsUndoEnabled = false;
             Editor.Clear();
+            Editor.IsUndoEnabled = true;
+            EditorScroll.ScrollToVerticalOffset(0);
 
             _currentFilePath = null;
             _currentEncoding = EncodingDetector.Utf8NoBom;

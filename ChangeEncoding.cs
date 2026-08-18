@@ -1,8 +1,6 @@
 using System.Text;
 using System.Windows;
-using MenuItem = System.Windows.Controls.MenuItem;
-using MessageBoxButton = System.Windows.MessageBoxButton;
-using MessageBoxResult = System.Windows.MessageBoxResult;
+using System.Windows.Controls;
 
 namespace PureNote
 {
@@ -10,10 +8,7 @@ namespace PureNote
     {
         private void EncodingMenuItem_Click(object sender, RoutedEventArgs e)
         {
-            MenuItem clicked = sender as MenuItem;
-            if (clicked == null) return;
-
-            string displayName = (string)clicked.Header;
+            string displayName = (string)((MenuItem)sender).Header;
             Encoding newEncoding = EncodingDetector.FromDisplayName(displayName);
 
             if (displayName == EncodingDetector.GetDisplayName(_currentEncoding))
@@ -46,14 +41,7 @@ namespace PureNote
         {
             string displayName = EncodingDetector.GetDisplayName(encoding);
 
-            foreach (object obj in EncodingMenu.Items)
-            {
-                if (obj is MenuItem item)
-                {
-                    item.IsChecked = (string)item.Header == displayName;
-                }
-            }
-
+            CheckMenuItem(EncodingMenu.Items, displayName);
             EncodingText.Text = displayName;
         }
     }

@@ -1,7 +1,9 @@
+using System;
 using System.Collections.Generic;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
+using System.Windows.Threading;
 
 namespace PureNote
 {
@@ -17,9 +19,15 @@ namespace PureNote
             if (FindPopup.IsOpen)
             {
                 ReplacePopup.IsOpen = false;
-                FindTextBox.Focus();
-                FindTextBox.SelectAll();
                 UpdateFindMatches();
+
+                // Deferred: a top-level MenuItem click leaves the menu holding
+                // keyboard focus as it unwinds, which would pull focus back off.
+                Dispatcher.BeginInvoke(DispatcherPriority.Input, new Action(() =>
+                {
+                    FindTextBox.Focus();
+                    FindTextBox.SelectAll();
+                }));
             }
             else
             {
@@ -35,8 +43,8 @@ namespace PureNote
 
         private void FindTextBox_TextChanged(object sender, TextChangedEventArgs e)
         {
-            UpdateFindMatches();
-            GoToMatch(forward: true);
+            RecomputeMatches();
+            GoToMatch(forward: true, advance: false);
         }
 
         private void FindTextBox_KeyDown(object sender, KeyEventArgs e)
@@ -65,8 +73,8 @@ namespace PureNote
 
         private void MatchMode_Changed(object sender, RoutedEventArgs e)
         {
-            UpdateFindMatches();
-            GoToMatch(forward: true);
+            RecomputeMatches();
+            GoToMatch(forward: true, advance: false);
         }
 
         private void HighlightOption_Changed(object sender, RoutedEventArgs e)
@@ -74,30 +82,46 @@ namespace PureNote
             RefreshHighlights();
         }
 
-        private void UpdateFindMatches()
+        private void RecomputeMatches()
         {
             _findCurrentIndex = -1;
             TextSearch.FindAll(Editor.Text, FindTextBox.Text, ExactMatchRadio.IsChecked == true, _findMatches);
+        }
 
+        // For callers that don't follow up with GoToMatch — which would otherwise
+        // redraw the highlight layer and status a second time for the same edit.
+        private void UpdateFindMatches()
+        {
+            RecomputeMatches();
             RefreshHighlights();
             UpdateFindStatus();
         }
 
-        private void GoToMatch(bool forward)
+        // advance: true for an explicit Next (skip past the current match), false
+        // while the search term is still being typed — there the current match is
+        // the one the user is refining, so re-searching must not step over it.
+        private void GoToMatch(bool forward, bool advance = true)
         {
             if (_findMatches.Count == 0) return;
 
+            // The list is ascending, so locate the insertion point rather than
+            // scanning it — a common term in a large file yields tens of thousands
+            // of matches and this runs on every keystroke in the search box.
             if (forward)
             {
-                int searchFrom = Editor.SelectionStart + Editor.SelectionLength;
-                int idx = _findMatches.FindIndex(m => m >= searchFrom);
-                _findCurrentIndex = idx >= 0 ? idx : 0;
+                int searchFrom = advance
+                    ? Editor.SelectionStart + Editor.SelectionLength
+                    : Editor.SelectionStart;
+
+                int idx = _findMatches.BinarySearch(searchFrom);
+                if (idx < 0) idx = ~idx;
+                _findCurrentIndex = idx < _findMatches.Count ? idx : 0;
             }
             else
             {
-                int searchFrom = Editor.SelectionStart;
-                int idx = _findMatches.FindLastIndex(m => m < searchFrom);
-                _findCurrentIndex = idx >= 0 ? idx : _findMatches.Count - 1;
+                int idx = _findMatches.BinarySearch(Editor.SelectionStart);
+                if (idx < 0) idx = ~idx;
+                _findCurrentIndex = idx > 0 ? idx - 1 : _findMatches.Count - 1;
             }
 
             int start = _findMatches[_findCurrentIndex];

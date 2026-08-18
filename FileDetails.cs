@@ -13,15 +13,17 @@ namespace PureNote
 
         private string BuildFileDetails()
         {
-            string encoding = EncodingDetector.GetDisplayName(_currentEncoding);
-            string counts = $"Characters: {Editor.Text.Length}\n" +
-                            $"Lines: {Editor.LineCount}";
+            return BuildFileHeader() + "\n" +
+                   $"Encoding: {EncodingDetector.GetDisplayName(_currentEncoding)}\n" +
+                   $"Characters: {CountDisplayCharacters()}\n" +
+                   $"Lines: {CountLines(Editor.Text)}";
+        }
 
+        private string BuildFileHeader()
+        {
             if (string.IsNullOrEmpty(_currentFilePath))
             {
-                return "File has not been saved to disk yet.\n" +
-                       $"Current encoding: {encoding}\n" +
-                       counts;
+                return "File has not been saved to disk yet.";
             }
 
             try
@@ -31,23 +33,17 @@ namespace PureNote
                 if (!fileInfo.Exists)
                 {
                     return $"Path: {_currentFilePath}\n" +
-                           "The file no longer exists on disk.\n" +
-                           $"Encoding: {encoding}\n" +
-                           counts;
+                           "The file no longer exists on disk.";
                 }
 
                 return $"Path: {_currentFilePath}\n" +
                        $"Size: {fileInfo.Length} bytes\n" +
-                       $"Encoding: {encoding}\n" +
-                       $"Last modified: {fileInfo.LastWriteTime}\n" +
-                       counts;
+                       $"Last modified: {fileInfo.LastWriteTime}";
             }
             catch (Exception ex)
             {
                 return $"Path: {_currentFilePath}\n" +
-                       $"Details unavailable: {ex.Message}\n" +
-                       $"Encoding: {encoding}\n" +
-                       counts;
+                       $"Details unavailable: {ex.Message}";
             }
         }
     }

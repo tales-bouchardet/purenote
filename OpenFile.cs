@@ -37,7 +37,15 @@ namespace PureNote
             string text = EncodingDetector.Decode(bytes, encoding);
 
             _lineEnding = LineEndings.Detect(text);
-            Editor.Text = LineEndings.ToEditor(text);
+
+            // Drop the previous document's undo history along with the document
+            // itself, or Ctrl+Z would restore the old file's text while the path,
+            // encoding and line ending all point at the new one — and saving then
+            // writes the old content over the new file.
+            Editor.IsUndoEnabled = false;
+            Editor.Text = LineEndings.Convert(text, LineEndings.Crlf);
+            Editor.IsUndoEnabled = true;
+            EditorScroll.ScrollToVerticalOffset(0);
 
             _currentFilePath = path;
             _currentEncoding = encoding;

@@ -1,5 +1,5 @@
 using System.Windows;
-using MenuItem = System.Windows.Controls.MenuItem;
+using System.Windows.Controls;
 
 namespace PureNote
 {
@@ -7,10 +7,7 @@ namespace PureNote
     {
         private void LineEndingMenuItem_Click(object sender, RoutedEventArgs e)
         {
-            MenuItem clicked = sender as MenuItem;
-            if (clicked == null) return;
-
-            string ending = (string)clicked.Header;
+            string ending = (string)((MenuItem)sender).Header;
 
             if (ending == _lineEnding)
             {
@@ -27,14 +24,7 @@ namespace PureNote
 
         private void SetLineEndingChecked(string ending)
         {
-            foreach (object obj in LineEndingMenu.Items)
-            {
-                if (obj is MenuItem item)
-                {
-                    item.IsChecked = (string)item.Header == ending;
-                }
-            }
-
+            CheckMenuItem(LineEndingMenu.Items, ending);
             LineEndingText.Text = ending;
         }
     }

@@ -39,7 +39,10 @@ namespace PureNote
             return haystack.IndexOf(needle, startIndex, StringComparison.Ordinal);
         }
 
-        public static string Normalize(string input)
+        // Folds accents and case so "Ação" matches "acao". Every branch must append
+        // exactly one char per input char: callers select by the returned index
+        // against the raw text, so the mapping has to stay 1:1.
+        private static string Normalize(string input)
         {
             StringBuilder sb = new StringBuilder(input.Length);
 
@@ -48,6 +51,15 @@ namespace PureNote
                 if (c < 128)
                 {
                     sb.Append(char.ToLowerInvariant(c));
+                    continue;
+                }
+
+                // Half of a surrogate pair is not a valid string on its own —
+                // string.Normalize throws on it, which used to take the whole app
+                // down whenever a document or search term contained an emoji.
+                if (char.IsSurrogate(c))
+                {
+                    sb.Append(c);
                     continue;
                 }
 

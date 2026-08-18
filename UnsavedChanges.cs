@@ -12,8 +12,10 @@ namespace PureNote
                 "There are unsaved changes. Do you want to save them first?",
                 "Unsaved changes", MessageBoxButton.YesNoCancel);
 
-            if (result == MessageBoxResult.Cancel) return false;
-
+            // Anything that isn't an explicit "discard" answer — Cancel, or the
+            // dialog being dismissed with Alt+F4 (MessageBoxResult.None) — has to
+            // block the operation. Falling through to "proceed" would throw away
+            // the unsaved buffer on a keystroke users press to back out.
             if (result == MessageBoxResult.Yes)
             {
                 Save_Click(this, new RoutedEventArgs());
@@ -21,7 +23,7 @@ namespace PureNote
                 return !_isDirty;
             }
 
-            return true;
+            return result == MessageBoxResult.No;
         }
     }
 }

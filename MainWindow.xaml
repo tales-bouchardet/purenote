@@ -173,6 +173,14 @@
                 <Rectangle Style="{StaticResource TopBarSeparatorStyle}"/>
 
                 <Menu Background="Transparent" VerticalAlignment="Center">
+                    <MenuItem Header="View" Foreground="{StaticResource PrimaryText}">
+                        <MenuItem x:Name="LineNumbersMenuItem" Header="Line numbers" IsCheckable="True" Click="LineNumbersMenuItem_Click"/>
+                    </MenuItem>
+                </Menu>
+
+                <Rectangle Style="{StaticResource TopBarSeparatorStyle}"/>
+
+                <Menu Background="Transparent" VerticalAlignment="Center">
                     <MenuItem x:Name="FindMenu" Header="Find" Foreground="{StaticResource PrimaryText}" Click="Find_Click"/>
                     <MenuItem x:Name="ReplaceMenu" Header="Replace" Foreground="{StaticResource PrimaryText}" Click="Replace_Click"/>
                 </Menu>
@@ -287,15 +295,37 @@
             </StackPanel>
         </Grid>
 
-        <TextBox x:Name="Editor" Grid.Row="1" AcceptsReturn="True" AcceptsTab="True" TextWrapping="NoWrap"
-                 VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto"
-                 Style="{StaticResource EditorTextBoxStyle}"
-                 FontSize="14" Padding="10"
-                 IsInactiveSelectionHighlightEnabled="True"
-                 TextChanged="Editor_TextChanged"
-                 PreviewKeyDown="Editor_PreviewKeyDown"/>
+        <ScrollViewer x:Name="EditorScroll" Grid.Row="1"
+                      VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"
+                      ScrollChanged="EditorScroll_ScrollChanged">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition x:Name="LineNumberColumn" Width="0"/>
+                    <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
 
-        <Canvas x:Name="HighlightLayer" Grid.Row="1" IsHitTestVisible="False" ClipToBounds="True"/>
+                <TextBox x:Name="LineNumberLayer" Grid.Column="0"
+                         Background="{StaticResource WindowBackground}" Foreground="{StaticResource SecondaryText}"
+                         BorderThickness="0" FontFamily="{StaticResource AppFont}" FontSize="14" Padding="10"
+                         TextAlignment="Right" TextWrapping="NoWrap"
+                         IsReadOnly="True" Focusable="False" IsHitTestVisible="False" IsUndoEnabled="False"
+                         VerticalScrollBarVisibility="Disabled" HorizontalScrollBarVisibility="Disabled"
+                         Visibility="Collapsed"/>
+
+                <Rectangle x:Name="LineNumberDivider" Grid.Column="0" Width="1" HorizontalAlignment="Right"
+                           Fill="{StaticResource PanelBorder}" IsHitTestVisible="False" Visibility="Collapsed"/>
+
+                <TextBox x:Name="Editor" Grid.Column="1" AcceptsReturn="True" AcceptsTab="True" TextWrapping="NoWrap"
+                         VerticalScrollBarVisibility="Disabled" HorizontalScrollBarVisibility="Auto"
+                         Style="{StaticResource EditorTextBoxStyle}"
+                         FontSize="14" Padding="10"
+                         IsInactiveSelectionHighlightEnabled="True"
+                         TextChanged="Editor_TextChanged"
+                         PreviewKeyDown="Editor_PreviewKeyDown"/>
+
+                <Canvas x:Name="HighlightLayer" Grid.Column="1" IsHitTestVisible="False" ClipToBounds="True"/>
+            </Grid>
+        </ScrollViewer>
 
         <Border Grid.Row="2" Background="{StaticResource ChromeBackground}" BorderBrush="{StaticResource ChromeBorder}" BorderThickness="0,1,0,0">
             <Grid Margin="12,0">
