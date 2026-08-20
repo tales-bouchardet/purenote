@@ -11,6 +11,12 @@ namespace PureNote
     {
         private void Replace_Click(object sender, RoutedEventArgs e)
         {
+            if (IsLoading)
+            {
+                ReportBusyLoading();
+                return;
+            }
+
             if (ReplacePopup.IsOpen)
             {
                 ReplaceClose_Click(sender, e);
@@ -19,7 +25,7 @@ namespace PureNote
 
             ReplacePopup.IsOpen = true;
             FindPopup.IsOpen = false;
-            HighlightLayer.Children.Clear();
+            ClearHighlights();
             ReplaceStatusText.Text = "";
 
             // Deferred: a top-level MenuItem click leaves the menu holding keyboard
@@ -59,10 +65,10 @@ namespace PureNote
             bool exact = ReplaceExactRadio.IsChecked == true;
             string replacement = ReplaceWithTextBox.Text;
 
-            int index = TextSearch.IndexOf(Editor.Text, term, Editor.SelectionStart, exact);
+            int index = TextSearch.IndexOf(DocumentText, term, Editor.SelectionStart, exact);
             if (index < 0)
             {
-                index = TextSearch.IndexOf(Editor.Text, term, 0, exact);
+                index = TextSearch.IndexOf(DocumentText, term, 0, exact);
             }
 
             if (index < 0)
@@ -86,7 +92,7 @@ namespace PureNote
 
             bool exact = ReplaceExactRadio.IsChecked == true;
             string replacement = ReplaceWithTextBox.Text;
-            string text = Editor.Text;
+            string text = DocumentText;
 
             List<int> matches = new List<int>();
             TextSearch.FindAll(text, term, exact, matches);
@@ -112,7 +118,7 @@ namespace PureNote
             int caret = Editor.SelectionStart;
             Editor.SelectAll();
             Editor.SelectedText = sb.ToString();
-            Editor.Select(Math.Min(caret, Editor.Text.Length), 0);
+            Editor.Select(Math.Min(caret, _rawLength), 0);
 
             ReplaceStatusText.Text = $"{matches.Count} replaced";
         }

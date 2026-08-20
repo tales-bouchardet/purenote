@@ -43,7 +43,15 @@ namespace PureNote
 
         private void SaveToFile(string path)
         {
-            string text = LineEndings.Convert(Editor.Text, _lineEnding);
+            // Half the file is in the editor until the load finishes; writing now
+            // would put the truncated version over the original.
+            if (IsLoading)
+            {
+                ReportBusyLoading();
+                return;
+            }
+
+            string text = LineEndings.Convert(DocumentText, _lineEnding);
 
             // Encodings like Windows-1252 or ASCII silently substitute '?' for
             // anything they can't express, so the loss is invisible until the file

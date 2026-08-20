@@ -16,7 +16,7 @@ namespace PureNote
             return BuildFileHeader() + "\n" +
                    $"Encoding: {EncodingDetector.GetDisplayName(_currentEncoding)}\n" +
                    $"Characters: {CountDisplayCharacters()}\n" +
-                   $"Lines: {CountLines(Editor.Text)}";
+                   $"Lines: {_lineCount}";
         }
 
         private string BuildFileHeader()

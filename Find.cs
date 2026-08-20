@@ -14,6 +14,14 @@ namespace PureNote
 
         private void Find_Click(object sender, RoutedEventArgs e)
         {
+            // Searching a document that is still arriving would report matches
+            // against whatever prefix happens to be in yet, and miss the rest.
+            if (IsLoading)
+            {
+                ReportBusyLoading();
+                return;
+            }
+
             FindPopup.IsOpen = !FindPopup.IsOpen;
 
             if (FindPopup.IsOpen)
@@ -31,14 +39,14 @@ namespace PureNote
             }
             else
             {
-                HighlightLayer.Children.Clear();
+                ClearHighlights();
             }
         }
 
         private void FindClose_Click(object sender, RoutedEventArgs e)
         {
             FindPopup.IsOpen = false;
-            HighlightLayer.Children.Clear();
+            ClearHighlights();
         }
 
         private void FindTextBox_TextChanged(object sender, TextChangedEventArgs e)
@@ -85,7 +93,7 @@ namespace PureNote
         private void RecomputeMatches()
         {
             _findCurrentIndex = -1;
-            TextSearch.FindAll(Editor.Text, FindTextBox.Text, ExactMatchRadio.IsChecked == true, _findMatches);
+            TextSearch.FindAll(DocumentText, FindTextBox.Text, ExactMatchRadio.IsChecked == true, _findMatches);
         }
 
         // For callers that don't follow up with GoToMatch — which would otherwise

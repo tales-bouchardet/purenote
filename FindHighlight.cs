@@ -1,59 +1,91 @@
 using System;
+using System.Collections.Generic;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Shapes;
+using System.Windows.Threading;
 
 namespace PureNote
 {
     public partial class MainWindow
     {
+        // Rectangles are reused rather than rebuilt. Scrolling fires a stream of
+        // these events, and tearing down and re-creating a canvas full of shapes
+        // on each one is a steady churn of allocations and visual-tree edits.
+        private readonly List<Rectangle> _highlightPool = new List<Rectangle>();
+        private int _highlightsUsed;
+        private bool _highlightRefreshQueued;
+
         private void Editor_ScrollChanged(object sender, ScrollChangedEventArgs e)
         {
-            RefreshHighlights();
-        }
-
-        // Vertical scrolling now happens on EditorScroll, not on Editor itself.
-        private void EditorScroll_ScrollChanged(object sender, ScrollChangedEventArgs e)
-        {
-            RefreshHighlights();
+            QueueHighlightRefresh();
+            LineNumbers_Invalidate();
         }
 
         private void Editor_SizeChanged(object sender, SizeChangedEventArgs e)
         {
-            RefreshHighlights();
+            QueueHighlightRefresh();
+            LineNumbers_Invalidate();
+        }
+
+        // A drag-select or a wheel spin produces many scroll events between two
+        // frames; collapsing them into one repaint at render time means the work
+        // happens once per frame instead of once per event.
+        private void QueueHighlightRefresh()
+        {
+            if (_highlightRefreshQueued) return;
+
+            _highlightRefreshQueued = true;
+            Dispatcher.BeginInvoke(DispatcherPriority.Render, new Action(() =>
+            {
+                _highlightRefreshQueued = false;
+                RefreshHighlights();
+            }));
         }
 
         private void RefreshHighlights()
         {
+            _highlightsUsed = 0;
+
             // Checked before touching the canvas: these events fire constantly, and
-            // when Find has never been opened there is nothing to clear.
-            if (!FindPopup.IsOpen)
+            // when Find has never been opened there is nothing to draw.
+            if (!FindPopup.IsOpen || _findMatches.Count == 0)
             {
-                if (HighlightLayer.Children.Count > 0) HighlightLayer.Children.Clear();
+                HideUnusedHighlights();
                 return;
             }
 
-            HighlightLayer.Children.Clear();
-
-            if (_findMatches.Count == 0) return;
-
             int length = FindTextBox.Text.Length;
-            if (length == 0) return;
+            EditorLineLayout layout;
+
+            if (length == 0 || !EditorLineLayout.TryCapture(Editor, out layout))
+            {
+                HideUnusedHighlights();
+                return;
+            }
 
             if (HighlightAllCheck.IsChecked == true)
             {
-                AddAllMatchHighlights(length);
+                AddAllMatchHighlights(layout, length);
             }
 
             if (_findCurrentIndex >= 0)
             {
-                AddHighlight(_findMatches[_findCurrentIndex], length, isCurrent: true);
+                AddHighlight(layout, _findMatches[_findCurrentIndex], length, isCurrent: true);
             }
+
+            HideUnusedHighlights();
         }
 
-        private void AddAllMatchHighlights(int length)
+        private void ClearHighlights()
         {
-            if (!TryGetVisibleCharacterRange(out int visibleStart, out int visibleEnd)) return;
+            _highlightsUsed = 0;
+            HideUnusedHighlights();
+        }
+
+        private void AddAllMatchHighlights(EditorLineLayout layout, int length)
+        {
+            if (!TryGetVisibleCharacterRange(layout, out int visibleStart, out int visibleEnd)) return;
 
             // Matches are collected in ascending order, so jump straight to the
             // first one that can be on screen. Searching a common substring in a
@@ -70,69 +102,83 @@ namespace PureNote
                 int start = _findMatches[i];
                 if (start > visibleEnd) break;
 
-                AddHighlight(start, length, isCurrent: false);
+                AddHighlight(layout, start, length, isCurrent: false);
             }
         }
 
-        private void AddHighlight(int start, int length, bool isCurrent)
+        private void AddHighlight(EditorLineLayout layout, int start, int length, bool isCurrent)
         {
-            if (start < 0 || start + length > Editor.Text.Length) return;
+            if (start < 0 || start + length > _rawLength) return;
 
             Rect startRect = Editor.GetRectFromCharacterIndex(start);
             Rect endRect = Editor.GetRectFromCharacterIndex(start + length);
 
             if (double.IsInfinity(startRect.X) || double.IsInfinity(endRect.X)) return;
 
+            // Only the two X values are taken from these rects — vertically they
+            // carry the same drift EditorLineLayout exists to correct, so the row
+            // comes from the layout instead. The Ys are still worth comparing to
+            // each other: both drift alike, so a difference means the match runs
+            // across a line break and there is no single row to draw it on.
             if (Math.Abs(startRect.Y - endRect.Y) > 1.0) return;
 
-            Rectangle rect = new Rectangle
-            {
-                Width = Math.Max(2, endRect.X - startRect.X),
-                Height = Math.Max(startRect.Height, endRect.Height),
-                RadiusX = 3,
-                RadiusY = 3,
-                Fill = isCurrent ? Theme.CurrentMatchFill : Theme.AllMatches,
-                Stroke = isCurrent ? Theme.CurrentMatchStroke : null,
-                StrokeThickness = isCurrent ? 1.5 : 0
-            };
+            int line = Editor.GetLineIndexFromCharacterIndex(start);
+            if (line < 0) return;
+
+            Rectangle rect = TakeHighlight();
+            rect.Width = Math.Max(2, endRect.X - startRect.X);
+            rect.Height = layout.LineHeight;
+            rect.Fill = isCurrent ? Theme.CurrentMatchFill : Theme.AllMatches;
+            rect.Stroke = isCurrent ? Theme.CurrentMatchStroke : null;
+            rect.StrokeThickness = isCurrent ? 1.5 : 0;
 
             Canvas.SetLeft(rect, startRect.X);
-            Canvas.SetTop(rect, Math.Min(startRect.Y, endRect.Y));
+            Canvas.SetTop(rect, layout.YForLine(line));
+        }
 
-            HighlightLayer.Children.Add(rect);
+        private Rectangle TakeHighlight()
+        {
+            if (_highlightsUsed == _highlightPool.Count)
+            {
+                Rectangle created = new Rectangle { RadiusX = 3, RadiusY = 3 };
+                _highlightPool.Add(created);
+                HighlightLayer.Children.Add(created);
+            }
+
+            Rectangle rect = _highlightPool[_highlightsUsed++];
+            rect.Visibility = Visibility.Visible;
+            return rect;
+        }
+
+        // Collapsed rather than removed: the pool settles at however many matches
+        // fit on screen, so after the first few repaints nothing is allocated.
+        private void HideUnusedHighlights()
+        {
+            for (int i = _highlightsUsed; i < _highlightPool.Count; i++)
+            {
+                if (_highlightPool[i].Visibility == Visibility.Visible)
+                {
+                    _highlightPool[i].Visibility = Visibility.Collapsed;
+                }
+            }
         }
 
         // False when the visible range can't be determined. Callers must skip
         // highlighting entirely in that case: falling back to the whole document
         // would build a Rectangle per match, which on a large file with a common
         // search term means tens of thousands of visuals in one canvas.
-        //
-        // Editor.GetFirstVisibleLineIndex/GetLastVisibleLineIndex only make sense
-        // when Editor scrolls itself; now that EditorScroll does the scrolling,
-        // Editor renders its full, unclipped height, so those two would just
-        // report the entire document as "visible". Ask EditorScroll's own
-        // viewport instead, translated to characters via the same point Editor
-        // sits at (Editor never scrolls vertically on its own, so its local Y
-        // coordinates line up 1:1 with EditorScroll's content coordinates).
-        private bool TryGetVisibleCharacterRange(out int start, out int end)
+        private bool TryGetVisibleCharacterRange(EditorLineLayout layout, out int start, out int end)
         {
             start = 0;
             end = 0;
 
-            double viewTop = EditorScroll.VerticalOffset;
-            double viewBottom = viewTop + EditorScroll.ViewportHeight;
+            int lineCount = Editor.LineCount;
+            if (lineCount < 1) return false;
 
-            int startIndex = Editor.GetCharacterIndexFromPoint(new Point(0, viewTop), true);
-            int endIndex = Editor.GetCharacterIndexFromPoint(new Point(0, viewBottom), true);
+            int lastLine = layout.LastLineIn(Editor.ViewportHeight, lineCount);
+            if (lastLine < layout.TopLine) return false;
 
-            if (startIndex < 0 || endIndex < 0) return false;
-
-            int firstLine = Editor.GetLineIndexFromCharacterIndex(startIndex);
-            int lastLine = Editor.GetLineIndexFromCharacterIndex(endIndex);
-
-            if (firstLine < 0 || lastLine < firstLine) return false;
-
-            start = Editor.GetCharacterIndexFromLineIndex(firstLine);
+            start = Editor.GetCharacterIndexFromLineIndex(layout.TopLine);
             end = Editor.GetCharacterIndexFromLineIndex(lastLine) + Editor.GetLineLength(lastLine);
             return true;
         }
