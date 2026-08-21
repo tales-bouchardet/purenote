@@ -9,8 +9,19 @@ namespace PureNote
 {
     public partial class MainWindow
     {
+        // Long enough to swallow the gaps inside a typed word, short enough that
+        // the results still feel like they arrive with the keystroke. Every
+        // recompute walks the whole document — on a 111 MB file a single common
+        // letter costs 265 ms and three and a half million matches, and typing
+        // "undefined" one letter at a time used to pay that nine times over,
+        // once per prefix, with the window stopped for each.
+        private const int FindDebounceMs = 150;
+
         private readonly List<int> _findMatches = new List<int>();
         private int _findCurrentIndex = -1;
+
+        private DispatcherTimer _findDebounceTimer;
+        private Action _findDebouncedWork;
 
         private void Find_Click(object sender, RoutedEventArgs e)
         {
@@ -39,20 +50,93 @@ namespace PureNote
             }
             else
             {
-                ClearHighlights();
+                DropFindMatches();
             }
         }
 
         private void FindClose_Click(object sender, RoutedEventArgs e)
         {
             FindPopup.IsOpen = false;
-            ClearHighlights();
+
+            // Drops the match list rather than just the rectangles: a closed find
+            // has no use for either, and a search queued a moment ago would
+            // otherwise still fire and walk the whole document for nothing.
+            DropFindMatches();
         }
 
         private void FindTextBox_TextChanged(object sender, TextChangedEventArgs e)
         {
-            RecomputeMatches();
-            GoToMatch(forward: true, advance: false);
+            DebounceFind(() =>
+            {
+                RecomputeMatches();
+                GoToMatch(forward: true, advance: false);
+            });
+        }
+
+        // Coalesces a burst of keystrokes into one search. Only the typing paths
+        // go through here: opening the popup, stepping between matches and
+        // switching match mode are all single deliberate actions, and making the
+        // user wait out a timer for those would be latency for its own sake.
+        private void DebounceFind(Action work)
+        {
+            _findDebouncedWork = work;
+
+            if (_findDebounceTimer == null)
+            {
+                // Input priority so a long search takes its turn against the
+                // typing that queued it rather than cutting in front.
+                _findDebounceTimer = new DispatcherTimer(DispatcherPriority.Input)
+                {
+                    Interval = TimeSpan.FromMilliseconds(FindDebounceMs)
+                };
+
+                _findDebounceTimer.Tick += (s, e) =>
+                {
+                    _findDebounceTimer.Stop();
+
+                    Action pending = _findDebouncedWork;
+                    _findDebouncedWork = null;
+                    if (pending != null) pending();
+                };
+            }
+
+            // Restarting is what makes it a debounce rather than a throttle: the
+            // search happens once the typing pauses, not every 150 ms through it.
+            _findDebounceTimer.Stop();
+            _findDebounceTimer.Start();
+        }
+
+        private void FlushPendingFind()
+        {
+            if (_findDebouncedWork == null) return;
+
+            _findDebounceTimer.Stop();
+
+            Action pending = _findDebouncedWork;
+            _findDebouncedWork = null;
+            pending();
+        }
+
+        // Called when the document underneath the matches is replaced. The
+        // offsets in hand index the outgoing document, and the incoming one is
+        // shorter for as long as it is still streaming in — GetRectFromCharacter
+        // Index throws rather than clamps when handed an offset past the end, and
+        // the highlight layer redraws on the scroll events the load itself
+        // raises. Leaving them in place turns opening a file with Find open into
+        // an unhandled ArgumentOutOfRangeException.
+        private void DropFindMatches()
+        {
+            if (_findDebounceTimer != null) _findDebounceTimer.Stop();
+            _findDebouncedWork = null;
+
+            _findCurrentIndex = -1;
+
+            // A common term in a large file leaves a list holding millions of
+            // ints; Clear on its own keeps every byte of that capacity.
+            _findMatches.Clear();
+            if (_findMatches.Capacity > 1024) _findMatches.Capacity = 0;
+
+            ClearHighlights();
         }
 
         private void FindTextBox_KeyDown(object sender, KeyEventArgs e)
@@ -110,6 +194,14 @@ namespace PureNote
         // the one the user is refining, so re-searching must not step over it.
         private void GoToMatch(bool forward, bool advance = true)
         {
+            // The offsets are about to be handed to Editor.Select, which throws
+            // rather than clamps past the end of the document. A debounced search
+            // still in flight means they were computed against the text as it
+            // stood before the last edit, so settle it before trusting them —
+            // which also makes Enter answer immediately instead of waiting out
+            // the timer.
+            FlushPendingFind();
+
             if (_findMatches.Count == 0) return;
 
             // The list is ascending, so locate the insertion point rather than

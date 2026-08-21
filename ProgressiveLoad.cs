@@ -33,13 +33,17 @@ namespace PureNote
         // status-bar update, and that update read Editor.Text — which rebuilds the
         // whole document into a fresh string, hundreds of times over. Nothing on
         // this path may ask the editor for the text, or for anything it would have
-        // to walk the text to answer. Both counts are taken once, here, from the
-        // string already in hand, and IsLoading keeps the ordinary edit path out
-        // of the way until the load is done.
+        // to walk the text to answer. Both counts are taken once, up front, from
+        // the bytes rather than from the editor, and IsLoading keeps the ordinary
+        // edit path out of the way until the load is done.
+        //
+        // The slices are cut from the file's bytes, not from a decoded string —
+        // see DocumentDecoder for why that halves what opening a file costs in
+        // memory.
 
         // Goes in before the first paint, so it buys a visible window rather than
         // a responsive one; small enough that it costs nothing either way.
-        private const int FirstChunkChars = 64 * 1024;
+        private const int FirstChunkBytes = 64 * 1024;
 
         // Each slice blocks the UI thread for as long as it takes to lay out, so
         // this is the longest stall the user can be made to sit through — and,
@@ -54,41 +58,51 @@ namespace PureNote
         // a second at which a delay starts to read as a stall.
         private const double SliceBudgetMs = 40;
 
-        private const int MinChunkChars = 8 * 1024;
-        private const int MaxChunkChars = 4 * 1024 * 1024;
+        private const int MinChunkBytes = 8 * 1024;
+        private const int MaxChunkBytes = 4 * 1024 * 1024;
 
-        private string _pendingText;
-        private int _loadedChars;
-        private int _chunkChars;
+        // Holds the file's bytes for as long as the load runs, and nothing once it
+        // ends — which is what makes releasing it the last thing a load does.
+        private DocumentDecoder _loading;
+        private int _chunkBytes;
         private int _loadGeneration;
 
         private bool IsLoading
         {
-            get { return _pendingText != null; }
+            get { return _loading != null; }
         }
 
-        private void BeginLoad(string text)
+        private void BeginLoad(DocumentDecoder decoder, DocumentShape shape)
         {
             CancelLoad();
+
+            // The document these were built against is being replaced. Both hold
+            // a full copy of it, and the find offsets are about to index a
+            // shorter one — see DropFindMatches for why that is a crash and not
+            // just a wrong highlight.
+            DropFindMatches();
+            TextSearch.ForgetDocument();
+            _textSnapshot = null;
 
             // Undo stays off across the load: none of the slices is an edit the
             // user made, and Ctrl+Z must not walk back through them.
             Editor.IsUndoEnabled = false;
 
-            if (text.Length <= FirstChunkChars)
+            if (decoder.ByteLength <= FirstChunkBytes)
             {
-                Editor.Text = text;
+                string all = decoder.NextSlice(decoder.ByteLength);
+
+                Editor.Text = all;
                 Editor.CaretIndex = 0;
                 Editor.ScrollToHome();
-                CompleteLoad(text.Length);
+                CompleteLoad(all.Length);
                 return;
             }
 
-            _pendingText = text;
-            _chunkChars = FirstChunkChars;
-            _loadedChars = Boundary(text, FirstChunkChars);
+            _loading = decoder;
+            _chunkBytes = FirstChunkBytes;
 
-            Editor.Text = text.Substring(0, _loadedChars);
+            Editor.Text = decoder.NextSlice(FirstChunkBytes);
             Editor.CaretIndex = 0;
 
             // Read-only until the whole file is in. The text already on screen is
@@ -97,12 +111,12 @@ namespace PureNote
             // would be one the user could not take back.
             Editor.IsReadOnly = true;
 
-            // Known exactly, from the string in hand, before a single line has
-            // been laid out — so the footer tells the truth about the file from
-            // the first frame and, more to the point, nothing in the loop below
-            // ever has to ask the editor to count anything.
-            _rawLength = text.Length;
-            _lineCount = CountLines(text);
+            // Measured from the bytes before any of them were decoded for real, so
+            // the footer tells the truth about the file from the first frame and,
+            // more to the point, nothing in the loop below ever has to ask the
+            // editor to count anything.
+            _rawLength = shape.Length;
+            _lineCount = shape.LineCount;
             if (_lineNumbersEnabled) LineNumberLayer.SetLineCount(_lineCount);
 
             LineCountText.Text = $"{_lineCount} ln";
@@ -140,14 +154,11 @@ namespace PureNote
 
         private void LoadSlice(int generation)
         {
-            if (generation != _loadGeneration || _pendingText == null) return;
-
-            string text = _pendingText;
-            int end = Boundary(text, (int)Math.Min((long)_loadedChars + _chunkChars, text.Length));
+            if (generation != _loadGeneration || _loading == null) return;
 
             Stopwatch timer = Stopwatch.StartNew();
 
-            Editor.AppendText(text.Substring(_loadedChars, end - _loadedChars));
+            Editor.AppendText(_loading.NextSlice(_chunkBytes));
 
             // The append only marks the layout dirty; the measure that is the real
             // cost happens on a later pass. Forcing it here is what puts it inside
@@ -157,25 +168,27 @@ namespace PureNote
 
             timer.Stop();
 
-            _loadedChars = end;
-
-            if (_loadedChars >= text.Length)
+            if (_loading.AtEnd)
             {
-                CompleteLoad(text.Length);
+                // Taken from what the decoder actually wrote rather than from the
+                // measured total, so a disagreement between the two could never
+                // leave the tracked length describing a document the editor does
+                // not hold.
+                CompleteLoad(_loading.CharsProduced);
                 return;
             }
 
-            _chunkChars = NextChunkSize(_chunkChars, timer.Elapsed.TotalMilliseconds);
+            _chunkBytes = NextChunkSize(_chunkBytes, timer.Elapsed.TotalMilliseconds);
 
             ShowProgress();
             QueueNextSlice();
         }
 
-        // Per-character cost swings by more than an order of magnitude with the
-        // shape of the file — the layout is priced per line, so a megabyte of
-        // 30-character lines costs many times what a megabyte of 600-character
-        // ones does — and by machine on top of that. So rather than guess a size,
-        // aim at the time budget and correct towards it after every slice.
+        // Per-byte cost swings by more than an order of magnitude with the shape
+        // of the file — the layout is priced per line, so a megabyte of 30-byte
+        // lines costs many times what a megabyte of 600-byte ones does — and by
+        // machine on top of that. So rather than guess a size, aim at the time
+        // budget and correct towards it after every slice.
         private static int NextChunkSize(int current, double elapsedMs)
         {
             // A slice fast enough to land on the clock's resolution says nothing
@@ -190,29 +203,31 @@ namespace PureNote
 
             double next = current * scale;
 
-            if (next < MinChunkChars) return MinChunkChars;
-            if (next > MaxChunkChars) return MaxChunkChars;
+            if (next < MinChunkBytes) return MinChunkBytes;
+            if (next > MaxChunkBytes) return MaxChunkBytes;
             return (int)next;
         }
 
         private void ShowProgress()
         {
-            long percent = 100L * _loadedChars / _pendingText.Length;
+            long percent = 100L * _loading.BytesRead / _loading.ByteLength;
             LoadProgressText.Text = percent.ToString(CultureInfo.InvariantCulture) + "% loaded";
         }
 
         private void CancelLoad()
         {
             _loadGeneration++;
-            _pendingText = null;
-            _loadedChars = 0;
+            _loading = null;
 
             EndLoadingState();
         }
 
         private void CompleteLoad(int length)
         {
-            _pendingText = null;
+            // Releases the file's bytes: from here the editor is the only thing
+            // holding the document, and on a large file that is the difference
+            // between two copies resident and one.
+            _loading = null;
 
             EndLoadingState();
 
@@ -237,23 +252,6 @@ namespace PureNote
 
             LoadProgressSeparator.Visibility = Visibility.Collapsed;
             LoadProgressText.Visibility = Visibility.Collapsed;
-        }
-
-        // Splitting a CRLF or a surrogate pair would leave the tail of the loaded
-        // text showing half a character until the next slice completes it.
-        private static int Boundary(string text, int index)
-        {
-            if (index >= text.Length) return text.Length;
-            if (index <= 0) return 0;
-
-            if (text[index - 1] == '\r' && text[index] == '\n') index++;
-
-            if (index < text.Length && char.IsHighSurrogate(text[index - 1]) && char.IsLowSurrogate(text[index]))
-            {
-                index++;
-            }
-
-            return index > text.Length ? text.Length : index;
         }
 
         // Find, Replace, Save and the encoding check all need the whole document,

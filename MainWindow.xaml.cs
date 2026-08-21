@@ -10,16 +10,13 @@ namespace PureNote
     public partial class MainWindow : FluentWindow
     {
         // Read by the crash handler so it can dump unsaved work before exiting.
+        //
+        // Mid-load this is only the part of the file that has arrived, and that is
+        // the right answer: the load is read-only, so there is no unsaved work to
+        // rescue, and the file it came from is still sitting on disk intact.
         internal string EditorText
         {
-            get
-            {
-                if (Editor == null) return null;
-
-                // Mid-load the editor only holds part of the file; the recovery
-                // dump wants all of it.
-                return _pendingText ?? Editor.Text;
-            }
+            get { return Editor == null ? null : Editor.Text; }
         }
 
         private string _currentFilePath;
@@ -120,12 +117,16 @@ namespace PureNote
         private void Editor_TextChanged(object sender, TextChangedEventArgs e)
         {
             _textSnapshot = null;
-            LineNumbers_Invalidate();
 
             // Appends from a progressive load are not edits: the file is not
             // dirty, the counts would only churn, and CompleteLoad settles both
-            // once the whole document has arrived.
+            // once the whole document has arrived. The gutter is left out of it
+            // too — text lands at the end of the document, where it cannot
+            // change which numbers are on screen, and the width was set from the
+            // final line count before the first slice went in.
             if (IsLoading) return;
+
+            LineNumbers_Invalidate();
 
             TrackLength(e);
             QueueCountsUpdate();
@@ -137,9 +138,13 @@ namespace PureNote
                 UpdatePathDisplay();
             }
 
+            // Debounced for the same reason typing in the search box is: each
+            // recompute rescans the whole document, and an edit invalidates the
+            // folded copy the search runs against, so every keystroke here would
+            // otherwise pay for a fresh fold as well.
             if (FindPopup.IsOpen)
             {
-                UpdateFindMatches();
+                DebounceFind(UpdateFindMatches);
             }
         }
     }

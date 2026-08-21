@@ -38,23 +38,43 @@ namespace PureNote
             // stopping to ask: it is right for all but a shrinking minority of
             // files, and the encoding menu is there for the rest.
             Encoding encoding = EncodingDetector.Detect(bytes) ?? EncodingDetector.Utf8NoBom;
-            string text = EncodingDetector.Decode(bytes, encoding);
 
-            _lineEnding = LineEndings.Detect(text);
+            DocumentShape shape;
+            DocumentDecoder decoder;
 
-            // Drop the previous document's undo history along with the document
-            // itself, or Ctrl+Z would restore the old file's text while the path,
-            // encoding and line ending all point at the new one — and saving then
-            // writes the old content over the new file.
-            string normalised = LineEndings.Convert(text, LineEndings.Crlf);
+            try
+            {
+                // Settles the line and character counts, and which line ending the
+                // file arrived with, by decoding it once into a single reused
+                // buffer. Nothing the size of the document is allocated here — the
+                // bytes stay the only full copy until the editor builds its own.
+                if (!DocumentDecoder.TryMeasure(bytes, encoding, out shape))
+                {
+                    ReportTooLarge(path);
+                    return;
+                }
+
+                decoder = new DocumentDecoder(bytes, encoding);
+            }
+            catch (OutOfMemoryException)
+            {
+                // Left the current document alone, so there is something to go
+                // back to. Without this the allocation takes the process down and
+                // the crash handler tries to dump the buffer with no memory to do
+                // it in.
+                ReportTooLarge(path);
+                return;
+            }
 
             // Puts the first screenful up straight away and feeds in the rest a
-            // piece at a time; it also owns the undo reset and the tracked
-            // length, which it can only settle once the whole file is in.
-            BeginLoad(normalised);
+            // slice at a time, decoding each one on its way in; it also owns the
+            // undo reset and the tracked length, which it can only settle once the
+            // whole file is in.
+            BeginLoad(decoder, shape);
 
             _currentFilePath = path;
             _currentEncoding = encoding;
+            _lineEnding = shape.LineEnding;
             _isDirty = false;
 
             UpdatePathDisplay();
@@ -76,12 +96,26 @@ namespace PureNote
             {
                 ReportReadDenied(path);
             }
+            catch (OutOfMemoryException)
+            {
+                ReportTooLarge(path);
+            }
             catch (IOException ex)
             {
                 AppMessageBox.ShowError(this, $"Could not open the file:\n{path}\n\n{ex.Message}");
             }
 
             return null;
+        }
+
+        // The editor holds the file as UTF-16 and builds a normalised copy beside
+        // it, so what opening costs is a multiple of the size on disk rather than
+        // the size on disk.
+        private void ReportTooLarge(string path)
+        {
+            AppMessageBox.ShowError(this,
+                $"Not enough memory to open:\n{path}\n\n" +
+                "The file is too large for purenote to hold in memory.");
         }
 
         private void ReportReadDenied(string path)

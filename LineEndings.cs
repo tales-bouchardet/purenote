@@ -8,32 +8,11 @@ namespace PureNote
         public const string Lf = "LF";
         public const string Cr = "CR";
 
-        public static string Detect(string text)
+        // Which convention a document arrived in. The breaks are counted by
+        // whoever is already walking it — the decoder does it while measuring the
+        // file — so nothing has to scan a second time to ask.
+        public static string FromCounts(int crlf, int cr, int lf)
         {
-            int crlf = 0;
-            int lf = 0;
-            int cr = 0;
-
-            for (int i = 0; i < text.Length; i++)
-            {
-                if (text[i] == '\r')
-                {
-                    if (i + 1 < text.Length && text[i + 1] == '\n')
-                    {
-                        crlf++;
-                        i++;
-                    }
-                    else
-                    {
-                        cr++;
-                    }
-                }
-                else if (text[i] == '\n')
-                {
-                    lf++;
-                }
-            }
-
             if (lf > crlf && lf >= cr) return Lf;
             if (cr > crlf && cr > lf) return Cr;
             return Crlf;

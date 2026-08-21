@@ -50,9 +50,25 @@ namespace PureNote
         {
             if (ReferenceEquals(text, _foldedSource)) return _foldedDocument;
 
+            // Dropped before folding rather than after: otherwise the outgoing
+            // pair stays reachable across the allocation of the incoming one and
+            // the process has to hold four copies of the document at once.
+            _foldedSource = null;
+            _foldedDocument = null;
+
             _foldedDocument = Fold(text);
             _foldedSource = text;
             return _foldedDocument;
+        }
+
+        // These two are static, so without this they outlive the document they
+        // were built from: open a 111 MB file, search once, then open a small
+        // one, and the process goes on holding 222 MB of folded text plus a
+        // reference to the original for as long as it runs.
+        public static void ForgetDocument()
+        {
+            _foldedSource = null;
+            _foldedDocument = null;
         }
 
         // Folds accents and case so "Ação" matches "acao". Every branch must map
