@@ -93,7 +93,54 @@
                                 <Setter TargetName="PART_Popup" Property="Placement" Value="Right"/>
                                 <Setter TargetName="SubmenuArrow" Property="Visibility" Value="Visible"/>
                             </Trigger>
+
+                            <!-- Last, so it wins over IsHighlighted: a disabled item
+                                 that still lights up under the pointer reads as
+                                 clickable. Nothing in the menus was ever disabled
+                                 before the editor's context menu, which is why this
+                                 was not needed until now. -->
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter TargetName="Border" Property="Background" Value="Transparent"/>
+                                <Setter Property="Foreground" Value="{StaticResource MutedText}"/>
+                            </Trigger>
                         </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- The context menu is hosted in its own popup rather than in the window,
+             so it inherits none of the window's chrome and has to be dressed
+             itself or it opens as a light-themed strip over a dark editor. -->
+        <Style TargetType="ContextMenu">
+            <Setter Property="FontFamily" Value="{StaticResource AppFont}"/>
+            <Setter Property="Foreground" Value="{StaticResource PrimaryText}"/>
+            <Setter Property="Background" Value="{StaticResource PopupBackground}"/>
+            <Setter Property="BorderBrush" Value="{StaticResource PanelBorder}"/>
+            <Setter Property="HasDropShadow" Value="True"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ContextMenu">
+                        <Border Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="1" CornerRadius="6"
+                                Padding="4" SnapsToDevicePixels="True">
+                            <StackPanel IsItemsHost="True" Orientation="Vertical"
+                                        KeyboardNavigation.DirectionalNavigation="Cycle"/>
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Keyed on SeparatorStyleKey rather than by type: menus look their
+             separators up under that key, so a plain TargetType style would be
+             ignored and the default light rule drawn instead. -->
+        <Style x:Key="{x:Static MenuItem.SeparatorStyleKey}" TargetType="Separator">
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Separator">
+                        <Rectangle Height="1" Margin="8,4" Fill="{StaticResource PanelBorder}"/>
                     </ControlTemplate>
                 </Setter.Value>
             </Setter>
@@ -128,6 +175,8 @@
         <CommandBinding Command="ApplicationCommands.New" Executed="New_Executed"/>
         <CommandBinding Command="ApplicationCommands.Open" Executed="Open_Executed"/>
         <CommandBinding Command="ApplicationCommands.Save" Executed="Save_Executed"/>
+        <CommandBinding Command="ApplicationCommands.Find" Executed="Find_Executed"/>
+        <CommandBinding Command="ApplicationCommands.Replace" Executed="Replace_Executed"/>
     </ui:FluentWindow.CommandBindings>
 
     <Grid>
@@ -308,15 +357,35 @@
                                     DividerBrush="{StaticResource PanelBorder}"
                                     Visibility="Collapsed"/>
 
-            <TextBox x:Name="Editor" Grid.Column="1" AcceptsReturn="True" AcceptsTab="True" TextWrapping="NoWrap"
-                     VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto"
-                     Style="{StaticResource EditorTextBoxStyle}"
-                     FontSize="14" Padding="10"
-                     IsInactiveSelectionHighlightEnabled="True"
-                     TextChanged="Editor_TextChanged"
-                     PreviewKeyDown="Editor_PreviewKeyDown"/>
+            <!-- CanContentScroll puts the view itself in charge of scrolling, which
+                 is what lets it report an extent derived from the line count rather
+                 than from a measured document. See TextView. -->
+            <ScrollViewer x:Name="EditorScroll" Grid.Column="1"
+                          CanContentScroll="True"
+                          Background="{StaticResource WindowBackground}"
+                          HorizontalScrollBarVisibility="Auto"
+                          VerticalScrollBarVisibility="Auto">
+                <local:TextView x:Name="Editor"
+                                FontFamily="{StaticResource AppFont}"
+                                FontSize="14"
+                                Padding="10,6,10,6"
+                                Background="{StaticResource WindowBackground}"
+                                Foreground="{StaticResource EditorText}"
+                                CaretBrush="{StaticResource EditorText}"
+                                SelectionBrush="{StaticResource SelectionBackground}">
+                    <local:TextView.ContextMenu>
+                        <ContextMenu x:Name="EditorContextMenu" Opened="EditorContextMenu_Opened">
+                            <MenuItem x:Name="ContextCut" Header="Cut" Click="ContextCut_Click"/>
+                            <MenuItem x:Name="ContextCopy" Header="Copy" Click="ContextCopy_Click"/>
+                            <MenuItem x:Name="ContextPaste" Header="Paste" Click="ContextPaste_Click"/>
+                            <Separator/>
+                            <MenuItem x:Name="ContextSearch" Header="Search term" Click="ContextSearch_Click"/>
+                            <MenuItem x:Name="ContextReplace" Header="Replace term" Click="ContextReplace_Click"/>
+                        </ContextMenu>
+                    </local:TextView.ContextMenu>
+                </local:TextView>
+            </ScrollViewer>
 
-            <Canvas x:Name="HighlightLayer" Grid.Column="1" IsHitTestVisible="False" ClipToBounds="True"/>
         </Grid>
 
         <Border Grid.Row="2" Background="{StaticResource ChromeBackground}" BorderBrush="{StaticResource ChromeBorder}" BorderThickness="0,1,0,0">

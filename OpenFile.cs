@@ -28,49 +28,89 @@ namespace PureNote
             }
         }
 
+        // FileStream's own buffer, which every read here is far larger than -
+        // past its size FileStream reads straight into the caller's array and
+        // never touches this. Kept small so it is not a second megabyte
+        // buffering a megabyte. It is only here because asking for
+        // SequentialScan means using the overload that also takes a size.
+        private const int StreamBuffer = 4096;
+
+        // Opening is now one operation rather than a staged one.
+        //
+        // It used to be split across a first chunk, a dispatcher pump, an
+        // adaptive slice size and a progress readout, all of it built to spread
+        // out the eighteen seconds a TextBox spent laying the file out before it
+        // would show anything. None of that work was the file's fault, and none
+        // of it survives: the document is built by passes that read the file a
+        // megabyte at a time, and the view never looks at more of it than fits on
+        // screen. Measured on a 256 MB file, the whole open comes to about one
+        // second and never holds more than the document itself.
         private void LoadFile(string path)
         {
-            byte[] bytes = ReadFile(path);
-            if (bytes == null) return;
+            bool discardingLarge = IsLargeDocument;
 
-            // Detect returns null for bytes that match no BOM and are not valid
-            // UTF-8. Opening still goes ahead on the UTF-8 assumption rather than
-            // stopping to ask: it is right for all but a shrinking minority of
-            // files, and the encoding menu is there for the rest.
-            Encoding encoding = EncodingDetector.Detect(bytes) ?? EncodingDetector.Utf8NoBom;
-
+            TextDocument document;
+            Encoding encoding;
             DocumentShape shape;
-            DocumentDecoder decoder;
 
             try
             {
-                // Settles the line and character counts, and which line ending the
-                // file arrived with, by decoding it once into a single reused
-                // buffer. Nothing the size of the document is allocated here — the
-                // bytes stay the only full copy until the editor builds its own.
-                if (!DocumentDecoder.TryMeasure(bytes, encoding, out shape))
+                // One handle for all three passes rather than three opens. The
+                // fill pass writes into an array the measure pass sized, so a
+                // file that changed between them would be a buffer overrun -
+                // and FileShare.Read, which is what File.ReadAllBytes used,
+                // keeps writers out for as long as this is held.
+                using (FileStream stream = new FileStream(path, FileMode.Open, FileAccess.Read,
+                    FileShare.Read, StreamBuffer, FileOptions.SequentialScan))
                 {
-                    ReportTooLarge(path);
-                    return;
-                }
+                    // A file that matches no BOM and is not valid UTF-8 comes
+                    // back as Windows-1252, which round-trips every byte value,
+                    // so a file this guesses wrong is displayed wrong rather than
+                    // damaged on the next save. Opening goes ahead on the guess
+                    // rather than stopping to ask, and the encoding menu is there
+                    // for the rest. See EncodingDetector.Ansi.
+                    encoding = EncodingDetector.Detect(stream);
 
-                decoder = new DocumentDecoder(bytes, encoding);
+                    // Only ever a mark that was actually seen: Detect returns a
+                    // preamble-carrying encoding only when it matched one.
+                    int preamble = encoding.GetPreamble().Length;
+
+                    if (!DocumentLoader.TryMeasure(stream, encoding, preamble, out shape))
+                    {
+                        ReportTooLarge(path);
+                        return;
+                    }
+
+                    document = DocumentLoader.Load(stream, encoding, preamble, shape);
+                }
             }
             catch (OutOfMemoryException)
             {
-                // Left the current document alone, so there is something to go
+                // The current document is left alone, so there is something to go
                 // back to. Without this the allocation takes the process down and
                 // the crash handler tries to dump the buffer with no memory to do
                 // it in.
                 ReportTooLarge(path);
                 return;
             }
+            catch (UnauthorizedAccessException)
+            {
+                ReportReadDenied(path);
+                return;
+            }
+            catch (SecurityException)
+            {
+                ReportReadDenied(path);
+                return;
+            }
+            catch (IOException ex)
+            {
+                AppMessageBox.ShowError(this, $"Could not open the file:\n{path}\n\n{ex.Message}");
+                return;
+            }
 
-            // Puts the first screenful up straight away and feeds in the rest a
-            // slice at a time, decoding each one on its way in; it also owns the
-            // undo reset and the tracked length, which it can only settle once the
-            // whole file is in.
-            BeginLoad(decoder, shape);
+            DropFindMatches();
+            Editor.SetDocument(document);
 
             _currentFilePath = path;
             _currentEncoding = encoding;
@@ -78,39 +118,22 @@ namespace PureNote
             _isDirty = false;
 
             UpdatePathDisplay();
+            UpdateCounts();
             SetEncodingChecked(encoding);
             SetLineEndingChecked(_lineEnding);
+
+            // The document that was just replaced is the only large thing this
+            // let go of - the file itself was never held. Letting go of it is not
+            // the same as getting the memory back: it was one allocation the size
+            // of the document, which put it on the large object heap, and nothing
+            // there returns to the process until a collection runs.
+            if (discardingLarge) CompactLargeObjectHeap();
+
+            if (FindPopup.IsOpen) UpdateFindMatches();
         }
 
-        private byte[] ReadFile(string path)
-        {
-            try
-            {
-                return File.ReadAllBytes(path);
-            }
-            catch (UnauthorizedAccessException)
-            {
-                ReportReadDenied(path);
-            }
-            catch (SecurityException)
-            {
-                ReportReadDenied(path);
-            }
-            catch (OutOfMemoryException)
-            {
-                ReportTooLarge(path);
-            }
-            catch (IOException ex)
-            {
-                AppMessageBox.ShowError(this, $"Could not open the file:\n{path}\n\n{ex.Message}");
-            }
-
-            return null;
-        }
-
-        // The editor holds the file as UTF-16 and builds a normalised copy beside
-        // it, so what opening costs is a multiple of the size on disk rather than
-        // the size on disk.
+        // The document is held as UTF-16 with an index beside it, so what opening
+        // costs is roughly twice the size on disk plus four bytes a line.
         private void ReportTooLarge(string path)
         {
             AppMessageBox.ShowError(this,

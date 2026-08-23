@@ -10,7 +10,7 @@ Encoding and line endings can be changed by hand, and it warns you when the new
 one can't hold the text you have. Find and Replace can ignore case and accents,
 or match exactly.
 
-Shortcuts are Ctrl+N, Ctrl+O and Ctrl+S.
+Shortcuts are Ctrl+N, Ctrl+O, Ctrl+S, Ctrl+F and Ctrl+H.
 
 ## Running it
 

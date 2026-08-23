@@ -8,15 +8,6 @@ namespace PureNote
     {
         private void EncodingMenuItem_Click(object sender, RoutedEventArgs e)
         {
-            // CanRepresent below has to scan the whole document, and half of it
-            // is still on its way in.
-            if (IsLoading)
-            {
-                SetEncodingChecked(_currentEncoding);
-                ReportBusyLoading();
-                return;
-            }
-
             string displayName = (string)((MenuItem)sender).Header;
             Encoding newEncoding = EncodingDetector.FromDisplayName(displayName);
 
@@ -26,7 +17,7 @@ namespace PureNote
                 return;
             }
 
-            string question = EncodingDetector.CanRepresent(DocumentText, newEncoding)
+            string question = EncodingDetector.CanRepresent(Editor.Document, newEncoding)
                 ? $"Are you sure you want to change the encoding to {displayName}?"
                 : $"Some characters in this text cannot be represented in {displayName} " +
                   "and will be replaced with '?' when saving.\n\nChange the encoding anyway?";

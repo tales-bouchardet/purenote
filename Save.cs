@@ -43,20 +43,10 @@ namespace PureNote
 
         private void SaveToFile(string path)
         {
-            // Half the file is in the editor until the load finishes; writing now
-            // would put the truncated version over the original.
-            if (IsLoading)
-            {
-                ReportBusyLoading();
-                return;
-            }
-
-            string text = LineEndings.Convert(DocumentText, _lineEnding);
-
             // Encodings like Windows-1252 or ASCII silently substitute '?' for
             // anything they can't express, so the loss is invisible until the file
             // is reopened. Let the user back out while the text is still in memory.
-            if (!EncodingDetector.CanRepresent(text, _currentEncoding))
+            if (!EncodingDetector.CanRepresent(Editor.Document, _currentEncoding))
             {
                 MessageBoxResult answer = AppMessageBox.Show(this,
                     $"Some characters cannot be written as {EncodingDetector.GetDisplayName(_currentEncoding)} " +
@@ -66,7 +56,7 @@ namespace PureNote
                 if (answer != MessageBoxResult.Yes) return;
             }
 
-            if (!WriteFile(path, text)) return;
+            if (!WriteFile(path)) return;
 
             _currentFilePath = path;
             _isDirty = false;
@@ -76,13 +66,21 @@ namespace PureNote
         // Writes through a temporary file in the same directory and swaps it into
         // place, so a write that fails partway (disk full, drive removed) leaves
         // the original file intact instead of truncated.
-        private bool WriteFile(string path, string text)
+        //
+        // The document is streamed straight into the encoder, converting line
+        // endings on the way, so saving allocates a 64 KB chunk rather than the
+        // two full copies of the document it used to: one for the converted text
+        // and one for the string that conversion was flattened into.
+        private bool WriteFile(string path)
         {
             string temp = path + ".purenote-tmp";
 
             try
             {
-                File.WriteAllText(temp, text, _currentEncoding);
+                using (StreamWriter writer = new StreamWriter(temp, false, _currentEncoding))
+                {
+                    Editor.Document.WriteTo(writer, _lineEnding);
+                }
 
                 if (File.Exists(path))
                 {
@@ -102,6 +100,10 @@ namespace PureNote
             catch (SecurityException)
             {
                 ReportSaveDenied(path);
+            }
+            catch (OutOfMemoryException)
+            {
+                ReportOutOfMemory("save this document");
             }
             catch (IOException ex)
             {

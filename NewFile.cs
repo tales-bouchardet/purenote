@@ -14,14 +14,10 @@ namespace PureNote
         {
             if (!ConfirmDiscardChanges()) return;
 
-            CancelLoad();
+            bool discardingLarge = IsLargeDocument;
 
-            Editor.IsUndoEnabled = false;
-            Editor.IsReadOnly = false;
+            DropFindMatches();
             Editor.Clear();
-            Editor.IsUndoEnabled = true;
-            Editor.ScrollToHome();
-            ResetCounts(0);
 
             _currentFilePath = null;
             _currentEncoding = EncodingDetector.Utf8NoBom;
@@ -29,8 +25,17 @@ namespace PureNote
             _isDirty = false;
 
             UpdatePathDisplay();
+            UpdateCounts();
             SetEncodingChecked(_currentEncoding);
             SetLineEndingChecked(_lineEnding);
+
+            Editor.Focus();
+
+            // The one moment a large document is known to have been let go with
+            // nothing waiting on the latency: the editor is empty and the user is
+            // starting from scratch. Compacting here is what stops the space it
+            // occupied from being unusable to the next large file.
+            if (discardingLarge) CompactLargeObjectHeap();
         }
     }
 }

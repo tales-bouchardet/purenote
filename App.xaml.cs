@@ -35,14 +35,10 @@ namespace PureNote
                 PureNote.MainWindow window = MainWindow as PureNote.MainWindow;
                 if (window == null) return null;
 
-                string text = window.EditorText;
-                if (string.IsNullOrEmpty(text)) return null;
-
                 string path = Path.Combine(Path.GetTempPath(),
                     "purenote-recovery-" + DateTime.Now.ToString("yyyyMMdd-HHmmss") + ".txt");
 
-                File.WriteAllText(path, text);
-                return path;
+                return window.TryWriteRecovery(path) ? path : null;
             }
             catch (Exception)
             {
