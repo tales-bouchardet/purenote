@@ -34,6 +34,22 @@
 
         <Style TargetType="Menu">
             <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="VerticalAlignment" Value="Stretch"/>
+
+            <!-- A horizontal StackPanel rather than the WrapPanel a Menu uses by
+                 default, because a StackPanel stretches its children across the
+                 other axis and a WrapPanel leaves them at their desired size.
+                 That is what makes the items fill the height of the bar - which
+                 is not only how the bar looks right, but where its dropdowns
+                 open from: a Popup placed below a centred item opens ten pixels
+                 up inside the bar. -->
+            <Setter Property="ItemsPanel">
+                <Setter.Value>
+                    <ItemsPanelTemplate>
+                        <StackPanel Orientation="Horizontal"/>
+                    </ItemsPanelTemplate>
+                </Setter.Value>
+            </Setter>
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="Menu">
@@ -43,70 +59,181 @@
             </Setter>
         </Style>
 
+        <!-- The surface a dropdown is drawn on. The margin is there for the
+             shadow to fall into: a popup with AllowsTransparency can draw
+             outside its content, but only into space the content has left it.
+             It costs nothing in placement - a Popup positions its child's
+             content, not its margin box, so the visible border still lands on
+             the placement point and no offset is needed to put it back. -->
+        <Style x:Key="MenuSurfaceStyle" TargetType="Border">
+            <Setter Property="Background" Value="{StaticResource PopupBackground}"/>
+            <Setter Property="BorderBrush" Value="{StaticResource PanelBorder}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="CornerRadius" Value="5"/>
+            <Setter Property="SnapsToDevicePixels" Value="True"/>
+            <Setter Property="Padding" Value="0,4"/>
+            <Setter Property="Margin" Value="10,2,10,12"/>
+            <Setter Property="Effect">
+                <Setter.Value>
+                    <DropShadowEffect BlurRadius="10" ShadowDepth="3" Direction="270" Opacity="0.5" Color="Black"/>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Top of the bar: File, View, Find, Replace. Nothing but a label and a
+             fill behind it, tight enough that the four of them read as one strip
+             rather than as four buttons.
+
+             They sit back at rest and come forward under the pointer. The colour
+             is set here on the Border rather than on the MenuItem so it reaches
+             the label by inheritance and stays out of the way of the submenu
+             template, which wants its own. Note that a Foreground written on the
+             MenuItem in the markup would outrank all of this - which is why the
+             four of them no longer carry one. -->
+        <ControlTemplate x:Key="TopLevelMenuItemTemplate" TargetType="MenuItem">
+            <!-- The margin is on this Border and deliberately not on the MenuItem.
+                 The item still measures the full height of the bar, which is what
+                 the dropdown is placed against; only the fill behind the label
+                 pulls in from the edges. Putting it on the item instead would
+                 shorten the item and send the menu back to opening inside the
+                 bar. -->
+            <Border x:Name="Fill" Background="{TemplateBinding Background}" Padding="9,4"
+                    Margin="0,4" CornerRadius="4"
+                    TextElement.Foreground="{StaticResource SecondaryText}">
+                <Grid>
+                    <ContentPresenter ContentSource="Header" RecognizesAccessKey="True" VerticalAlignment="Center"/>
+
+                    <!-- Anchored to the MenuItem itself. Left to itself a Popup
+                         inside a template anchors to its own parent in the visual
+                         tree - here the Grid, which sits inside the Border's
+                         padding - so the menu opened a padding's worth up and to
+                         the side of where it looked like it should.
+
+                         No offsets: with the item filling the bar and the target
+                         named, the placement point is already the item's
+                         bottom-left corner and the dropdown hangs flush off the
+                         bar. -->
+                    <Popup x:Name="PART_Popup"
+                           PlacementTarget="{Binding RelativeSource={RelativeSource TemplatedParent}}"
+                           Placement="Bottom"
+                           AllowsTransparency="True" Focusable="False" PopupAnimation="Fade"
+                           IsOpen="{Binding IsSubmenuOpen, RelativeSource={RelativeSource TemplatedParent}}">
+                        <Border Style="{StaticResource MenuSurfaceStyle}">
+                            <StackPanel IsItemsHost="True" Orientation="Vertical"/>
+                        </Border>
+                    </Popup>
+                </Grid>
+            </Border>
+            <ControlTemplate.Triggers>
+                <Trigger Property="IsHighlighted" Value="True">
+                    <Setter TargetName="Fill" Property="Background" Value="{StaticResource HoverBackground}"/>
+                    <Setter TargetName="Fill" Property="TextElement.Foreground" Value="{StaticResource PrimaryText}"/>
+                </Trigger>
+
+                <!-- Held bright for as long as the menu is down, so the one that
+                     is open is the one that looks open. -->
+                <Trigger Property="IsSubmenuOpen" Value="True">
+                    <Setter TargetName="Fill" Property="Background" Value="{StaticResource HoverBackground}"/>
+                    <Setter TargetName="Fill" Property="TextElement.Foreground" Value="{StaticResource PrimaryText}"/>
+                </Trigger>
+
+                <Trigger Property="IsEnabled" Value="False">
+                    <Setter TargetName="Fill" Property="Background" Value="Transparent"/>
+                    <Setter TargetName="Fill" Property="TextElement.Foreground" Value="{StaticResource MutedText}"/>
+                </Trigger>
+            </ControlTemplate.Triggers>
+        </ControlTemplate>
+
+        <!-- Inside a dropdown, and inside the editor's context menu.
+             Four columns, and the two on the outside are a fixed width on
+             purpose: a check gutter that sizes to its contents is empty until
+             something is ticked, and then every label on the menu jumps sideways.
+             The third column is the shortcut, right up against the chevron
+             column, which is the part that makes a menu read as a real one. -->
+        <ControlTemplate x:Key="SubmenuItemTemplate" TargetType="MenuItem">
+            <!-- A shade back from white at rest, white under the pointer, the
+                 same way the bar behaves. Not as far back as the bar items: these
+                 are the thing being read, not a label waiting to be pointed at. -->
+            <Border x:Name="Fill" Background="{TemplateBinding Background}"
+                    TextElement.Foreground="{StaticResource EditorText}">
+                <Grid MinHeight="24">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="22"/>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="14"/>
+                    </Grid.ColumnDefinitions>
+
+                    <Path x:Name="CheckMark" Grid.Column="0" Visibility="Collapsed"
+                          Data="M0,4 L3,7 L8,0" Stroke="{StaticResource Accent}" StrokeThickness="1.5"
+                          HorizontalAlignment="Center" VerticalAlignment="Center"/>
+
+                    <ContentPresenter Grid.Column="1" ContentSource="Header"
+                                      RecognizesAccessKey="True" VerticalAlignment="Center"/>
+
+                    <TextBlock x:Name="Gesture" Grid.Column="2" Text="{TemplateBinding InputGestureText}"
+                               Foreground="{StaticResource MutedText}" VerticalAlignment="Center"
+                               Margin="28,0,0,0"/>
+
+                    <Path x:Name="SubmenuArrow" Grid.Column="3" Visibility="Collapsed"
+                          Data="M0,0 L4,4 L0,8" Stroke="{StaticResource SecondaryText}" StrokeThickness="1.2"
+                          HorizontalAlignment="Center" VerticalAlignment="Center"/>
+
+                    <!-- Same anchoring. The five it comes up by is the surface's
+                         own border and padding: a submenu reads as attached when
+                         its first item lines up with the item that opened it, not
+                         when its frame does. -->
+                    <Popup x:Name="PART_Popup"
+                           PlacementTarget="{Binding RelativeSource={RelativeSource TemplatedParent}}"
+                           Placement="Right" VerticalOffset="-5"
+                           AllowsTransparency="True" Focusable="False" PopupAnimation="Fade"
+                           IsOpen="{Binding IsSubmenuOpen, RelativeSource={RelativeSource TemplatedParent}}">
+                        <Border Style="{StaticResource MenuSurfaceStyle}">
+                            <StackPanel IsItemsHost="True" Orientation="Vertical"/>
+                        </Border>
+                    </Popup>
+                </Grid>
+            </Border>
+            <ControlTemplate.Triggers>
+                <Trigger Property="IsHighlighted" Value="True">
+                    <Setter TargetName="Fill" Property="Background" Value="{StaticResource HoverBackground}"/>
+                    <Setter TargetName="Fill" Property="TextElement.Foreground" Value="{StaticResource PrimaryText}"/>
+                </Trigger>
+                <Trigger Property="IsChecked" Value="True">
+                    <Setter TargetName="CheckMark" Property="Visibility" Value="Visible"/>
+                </Trigger>
+                <Trigger Property="Role" Value="SubmenuHeader">
+                    <Setter TargetName="SubmenuArrow" Property="Visibility" Value="Visible"/>
+                </Trigger>
+
+                <!-- Last, so it wins over IsHighlighted: a disabled item that
+                     still lights up under the pointer reads as clickable. The
+                     shortcut greys out with the label, or it goes on looking
+                     available next to something that is not. -->
+                <Trigger Property="IsEnabled" Value="False">
+                    <Setter TargetName="Fill" Property="Background" Value="Transparent"/>
+                    <Setter TargetName="Fill" Property="TextElement.Foreground" Value="{StaticResource MutedText}"/>
+                    <Setter TargetName="Gesture" Property="Foreground" Value="{StaticResource PanelBorder}"/>
+                </Trigger>
+            </ControlTemplate.Triggers>
+        </ControlTemplate>
+
+        <!-- Which of the two an item gets is decided by where it sits, which is
+             what MenuItem.Role reports. The default covers TopLevelItem - Find
+             and Replace, which are on the bar but open nothing. -->
         <Style TargetType="MenuItem">
             <Setter Property="FontFamily" Value="{StaticResource AppFont}"/>
             <Setter Property="Foreground" Value="{StaticResource PrimaryText}"/>
             <Setter Property="Background" Value="Transparent"/>
-            <Setter Property="Padding" Value="10,7"/>
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="MenuItem">
-                        <Border x:Name="Border" Background="{TemplateBinding Background}"
-                                CornerRadius="4" Margin="0,2">
-                            <Grid>
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="Auto"/>
-                                    <ColumnDefinition Width="*"/>
-                                    <ColumnDefinition Width="Auto"/>
-                                </Grid.ColumnDefinitions>
-
-                                <Path x:Name="CheckMark" Grid.Column="0" Visibility="Collapsed"
-                                      Data="M0,4 L3,7 L8,0" Stroke="{StaticResource Accent}" StrokeThickness="1.5"
-                                      Margin="10,0,0,0" VerticalAlignment="Center"/>
-
-                                <ContentPresenter x:Name="HeaderHost" Grid.Column="1" ContentSource="Header"
-                                                   RecognizesAccessKey="True" VerticalAlignment="Center"
-                                                   Margin="{TemplateBinding Padding}"/>
-
-                                <Path x:Name="SubmenuArrow" Grid.Column="2" Visibility="Collapsed"
-                                      Data="M0,0 L4,4 L0,8" Stroke="{StaticResource MutedText}" StrokeThickness="1.3"
-                                      Margin="0,0,10,0" VerticalAlignment="Center" HorizontalAlignment="Right"/>
-
-                                <Popup x:Name="PART_Popup" Placement="Bottom" AllowsTransparency="True"
-                                       Focusable="False" PopupAnimation="Fade"
-                                       IsOpen="{Binding IsSubmenuOpen, RelativeSource={RelativeSource TemplatedParent}}">
-                                    <Border Background="{StaticResource PopupBackground}" BorderBrush="{StaticResource PanelBorder}" BorderThickness="1"
-                                            CornerRadius="6" SnapsToDevicePixels="True">
-                                        <StackPanel IsItemsHost="True" Orientation="Vertical" Margin="4"/>
-                                    </Border>
-                                </Popup>
-                            </Grid>
-                        </Border>
-                        <ControlTemplate.Triggers>
-                            <Trigger Property="IsHighlighted" Value="True">
-                                <Setter TargetName="Border" Property="Background" Value="{StaticResource HoverBackground}"/>
-                            </Trigger>
-                            <Trigger Property="IsChecked" Value="True">
-                                <Setter TargetName="CheckMark" Property="Visibility" Value="Visible"/>
-                            </Trigger>
-                            <Trigger Property="Role" Value="SubmenuHeader">
-                                <Setter TargetName="PART_Popup" Property="Placement" Value="Right"/>
-                                <Setter TargetName="SubmenuArrow" Property="Visibility" Value="Visible"/>
-                            </Trigger>
-
-                            <!-- Last, so it wins over IsHighlighted: a disabled item
-                                 that still lights up under the pointer reads as
-                                 clickable. Nothing in the menus was ever disabled
-                                 before the editor's context menu, which is why this
-                                 was not needed until now. -->
-                            <Trigger Property="IsEnabled" Value="False">
-                                <Setter TargetName="Border" Property="Background" Value="Transparent"/>
-                                <Setter Property="Foreground" Value="{StaticResource MutedText}"/>
-                            </Trigger>
-                        </ControlTemplate.Triggers>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
+            <Setter Property="Template" Value="{StaticResource TopLevelMenuItemTemplate}"/>
+            <Style.Triggers>
+                <Trigger Property="Role" Value="SubmenuItem">
+                    <Setter Property="Template" Value="{StaticResource SubmenuItemTemplate}"/>
+                </Trigger>
+                <Trigger Property="Role" Value="SubmenuHeader">
+                    <Setter Property="Template" Value="{StaticResource SubmenuItemTemplate}"/>
+                </Trigger>
+            </Style.Triggers>
         </Style>
 
         <!-- The context menu is hosted in its own popup rather than in the window,
@@ -117,14 +244,14 @@
             <Setter Property="Foreground" Value="{StaticResource PrimaryText}"/>
             <Setter Property="Background" Value="{StaticResource PopupBackground}"/>
             <Setter Property="BorderBrush" Value="{StaticResource PanelBorder}"/>
-            <Setter Property="HasDropShadow" Value="True"/>
+
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="ContextMenu">
-                        <Border Background="{TemplateBinding Background}"
-                                BorderBrush="{TemplateBinding BorderBrush}"
-                                BorderThickness="1" CornerRadius="6"
-                                Padding="4" SnapsToDevicePixels="True">
+                        <!-- The same surface a dropdown gets, so the menu the
+                             editor opens and the menus the bar opens are the same
+                             object seen twice rather than two near-misses. -->
+                        <Border Style="{StaticResource MenuSurfaceStyle}">
                             <StackPanel IsItemsHost="True" Orientation="Vertical"
                                         KeyboardNavigation.DirectionalNavigation="Cycle"/>
                         </Border>
@@ -140,7 +267,9 @@
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="Separator">
-                        <Rectangle Height="1" Margin="8,4" Fill="{StaticResource PanelBorder}"/>
+                        <!-- Runs almost the full width of the menu, with only
+                             enough air above and below to group what it divides. -->
+                        <Rectangle Height="1" Margin="1,4" Fill="{StaticResource PanelBorder}"/>
                     </ControlTemplate>
                 </Setter.Value>
             </Setter>
@@ -169,6 +298,84 @@
             <Setter Property="Margin" Value="12,0"/>
         </Style>
 
+        <!-- The caption buttons, to the measurements Windows uses for its own:
+             46 units wide, the full height of the bar so they meet the top edge,
+             no gap between them and no rounding. The glyphs are the ones the
+             shell draws - Segoe Fluent Icons on Windows 11, falling back to the
+             Segoe MDL2 Assets of Windows 10 - rather than the em dash and
+             multiplication sign that were standing in for them, which is most of
+             what made the old ones read as hand-drawn. -->
+        <Style x:Key="CaptionButtonStyle" TargetType="Button">
+            <Setter Property="Width" Value="46"/>
+            <Setter Property="VerticalAlignment" Value="Stretch"/>
+            <Setter Property="Background" Value="Transparent"/>
+
+            <!-- Held back at rest and brought forward under the pointer, the same
+                 as the menu items across the bar from them. The close button
+                 inherits this and paints its own white over the red. -->
+            <Setter Property="Foreground" Value="{StaticResource SecondaryText}"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="FontFamily" Value="Segoe Fluent Icons, Segoe MDL2 Assets"/>
+            <Setter Property="FontSize" Value="10"/>
+            <Setter Property="SnapsToDevicePixels" Value="True"/>
+            <Setter Property="Focusable" Value="False"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Fill" Background="{TemplateBinding Background}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Fill" Property="Background" Value="{StaticResource HoverBackground}"/>
+                                <Setter Property="Foreground" Value="{StaticResource PrimaryText}"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="Fill" Property="Background" Value="{StaticResource PanelBorder}"/>
+                                <Setter Property="Foreground" Value="{StaticResource PrimaryText}"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Set in the style rather than on the button, because a value written
+             on the element itself would outrank the trigger below and the glyph
+             would never change back. -->
+        <Style x:Key="MaximizeButtonStyle" TargetType="Button" BasedOn="{StaticResource CaptionButtonStyle}">
+            <Setter Property="Content" Value="&#xE922;"/>
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding WindowState, RelativeSource={RelativeSource AncestorType=Window}}" Value="Maximized">
+                    <Setter Property="Content" Value="&#xE923;"/>
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+
+        <!-- The one caption button Windows colours: red on hover, lighter while
+             held, and the glyph stays white through both. -->
+        <Style x:Key="CloseButtonStyle" TargetType="Button" BasedOn="{StaticResource CaptionButtonStyle}">
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Fill" Background="{TemplateBinding Background}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Fill" Property="Background" Value="#C42B1C"/>
+                                <Setter Property="Foreground" Value="White"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="Fill" Property="Background" Value="#C84031"/>
+                                <Setter Property="Foreground" Value="White"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
     </ui:FluentWindow.Resources>
 
     <ui:FluentWindow.CommandBindings>
@@ -182,6 +389,7 @@
     <Grid>
         <Grid.RowDefinitions>
             <RowDefinition Height="36"/>
+            <RowDefinition Height="26"/>
             <RowDefinition Height="*"/>
             <RowDefinition Height="28"/>
         </Grid.RowDefinitions>
@@ -191,12 +399,25 @@
                 <ColumnDefinition Width="*"/>
                 <ColumnDefinition Width="Auto"/>
             </Grid.ColumnDefinitions>
-            <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="10,0,0,0">
-                <Menu Background="Transparent" VerticalAlignment="Center">
-                    <MenuItem Header="File" Foreground="{StaticResource PrimaryText}">
-                        <MenuItem Header="New" Click="New_Click"/>
-                        <MenuItem Header="Open" Click="Open_Click"/>
-                        <MenuItem Header="Save" Click="Save_Click"/>
+            <StackPanel Orientation="Horizontal" VerticalAlignment="Stretch" Margin="10,0,0,0">
+
+                <!-- DecodePixelWidth picks the 16-pixel frame out of the icon
+                     rather than taking the largest one and shrinking it, which is
+                     what makes a multi-size .ico look soft at this size. It
+                     handles no mouse events, so the click still reaches the bar
+                     underneath and the window can be dragged by its icon. -->
+                <Image Width="16" Height="16" VerticalAlignment="Center" Margin="0,0,10,0"
+                       RenderOptions.BitmapScalingMode="HighQuality">
+                    <Image.Source>
+                        <BitmapImage UriSource="icon.ico" DecodePixelWidth="16"/>
+                    </Image.Source>
+                </Image>
+
+                <Menu Background="Transparent">
+                    <MenuItem Header="File">
+                        <MenuItem Header="New" Click="New_Click" InputGestureText="Ctrl+N"/>
+                        <MenuItem Header="Open" Click="Open_Click" InputGestureText="Ctrl+O"/>
+                        <MenuItem Header="Save" Click="Save_Click" InputGestureText="Ctrl+S"/>
                         <MenuItem Header="Save As..." Click="SaveAs_Click"/>
                         <Separator/>
                         <MenuItem x:Name="EncodingMenu" Header="Encoding">
@@ -222,20 +443,23 @@
 
                 <Rectangle Style="{StaticResource TopBarSeparatorStyle}"/>
 
-                <Menu Background="Transparent" VerticalAlignment="Center">
-                    <MenuItem Header="View" Foreground="{StaticResource PrimaryText}">
+                <Menu Background="Transparent">
+                    <MenuItem Header="View">
                         <MenuItem x:Name="LineNumbersMenuItem" Header="Line numbers" IsCheckable="True" Click="LineNumbersMenuItem_Click"/>
                     </MenuItem>
                 </Menu>
 
                 <Rectangle Style="{StaticResource TopBarSeparatorStyle}"/>
 
-                <Menu Background="Transparent" VerticalAlignment="Center">
-                    <MenuItem x:Name="FindMenu" Header="Find" Foreground="{StaticResource PrimaryText}" Click="Find_Click"/>
-                    <MenuItem x:Name="ReplaceMenu" Header="Replace" Foreground="{StaticResource PrimaryText}" Click="Replace_Click"/>
+                <Menu Background="Transparent">
+                    <MenuItem x:Name="FindMenu" Header="Find" Click="Find_Click"/>
+                    <MenuItem x:Name="ReplaceMenu" Header="Replace" Click="Replace_Click"/>
                 </Menu>
 
-                <Rectangle Style="{StaticResource TopBarSeparatorStyle}"/>
+                <!-- The separator that used to stand between the menus and the
+                     file name went with the file name. The popups below take no
+                     room in this row - they are their own windows - so leaving it
+                     put a divider after the last menu with nothing beyond it. -->
 
                 <Popup x:Name="FindPopup" PlacementTarget="{Binding ElementName=FindMenu}" Placement="Bottom"
                        StaysOpen="True" AllowsTransparency="True" PopupAnimation="Fade">
@@ -337,15 +561,38 @@
                     </Border>
                 </Popup>
 
-                <TextBlock x:Name="PathText" Text="No file" Foreground="{StaticResource MutedText}" VerticalAlignment="Center"/>
             </StackPanel>
-            <StackPanel Grid.Column="1" Orientation="Horizontal">
-                <Button Content="—" Click="Minimize_Click" Width="36" Background="Transparent" BorderThickness="0" Foreground="{StaticResource PrimaryText}"/>
-                <Button Content="✕" Click="CloseWindow_Click" Width="36" Background="Transparent" BorderThickness="0" Foreground="{StaticResource PrimaryText}"/>
+
+            <!-- Flush against the top and right edges, with no margin of their
+                 own: on Windows these run into the corner of the window, and a
+                 gap there is the first thing that reads as wrong. -->
+            <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Stretch">
+                <Button Content="&#xE921;" Click="Minimize_Click" Style="{StaticResource CaptionButtonStyle}"
+                        ToolTip="Minimize"/>
+                <Button Click="Maximize_Click" Style="{StaticResource MaximizeButtonStyle}"
+                        ToolTip="Maximize"/>
+                <Button Content="&#xE8BB;" Click="CloseWindow_Click" Style="{StaticResource CloseButtonStyle}"
+                        ToolTip="Close"/>
             </StackPanel>
         </Grid>
 
-        <Grid Grid.Row="1">
+        <!-- The path, broken into its parts, under the bar rather than in the
+             footer. A path reads better as a trail than as one long string, and
+             it belongs at the top beside the thing it names.
+
+             Carried in a ScrollViewer with no visible bar: a path deeper than the
+             window is wide gets scrolled to its end after every change, so what
+             falls off is the front of the trail and the file's own name is always
+             the part still on screen. -->
+        <Border Grid.Row="1" Background="{StaticResource WindowBackground}">
+            <ScrollViewer x:Name="BreadcrumbScroll" Focusable="False"
+                          HorizontalScrollBarVisibility="Hidden" VerticalScrollBarVisibility="Disabled">
+                <StackPanel x:Name="BreadcrumbBar" Orientation="Horizontal"
+                            VerticalAlignment="Center" Margin="12,0"/>
+            </ScrollViewer>
+        </Border>
+
+        <Grid Grid.Row="2">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="Auto"/>
                 <ColumnDefinition Width="*"/>
@@ -375,9 +622,9 @@
                                 SelectionBrush="{StaticResource SelectionBackground}">
                     <local:TextView.ContextMenu>
                         <ContextMenu x:Name="EditorContextMenu" Opened="EditorContextMenu_Opened">
-                            <MenuItem x:Name="ContextCut" Header="Cut" Click="ContextCut_Click"/>
-                            <MenuItem x:Name="ContextCopy" Header="Copy" Click="ContextCopy_Click"/>
-                            <MenuItem x:Name="ContextPaste" Header="Paste" Click="ContextPaste_Click"/>
+                            <MenuItem x:Name="ContextCut" Header="Cut" Click="ContextCut_Click" InputGestureText="Ctrl+X"/>
+                            <MenuItem x:Name="ContextCopy" Header="Copy" Click="ContextCopy_Click" InputGestureText="Ctrl+C"/>
+                            <MenuItem x:Name="ContextPaste" Header="Paste" Click="ContextPaste_Click" InputGestureText="Ctrl+V"/>
                             <Separator/>
                             <MenuItem x:Name="ContextSearch" Header="Search term" Click="ContextSearch_Click"/>
                             <MenuItem x:Name="ContextReplace" Header="Replace term" Click="ContextReplace_Click"/>
@@ -388,12 +635,11 @@
 
         </Grid>
 
-        <Border Grid.Row="2" Background="{StaticResource ChromeBackground}" BorderBrush="{StaticResource ChromeBorder}" BorderThickness="0,1,0,0">
+        <!-- What is left in the footer is what the path was never really with:
+             counts on the left, how the file is written on the right. -->
+        <Border Grid.Row="3" Background="{StaticResource ChromeBackground}" BorderBrush="{StaticResource ChromeBorder}" BorderThickness="0,1,0,0">
             <Grid Margin="12,0">
                 <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="Auto"/>
-                    <ColumnDefinition Width="Auto"/>
-                    <ColumnDefinition Width="Auto"/>
                     <ColumnDefinition Width="Auto"/>
                     <ColumnDefinition Width="Auto"/>
                     <ColumnDefinition Width="Auto"/>
@@ -412,20 +658,10 @@
                 <Rectangle Grid.Column="3" Style="{StaticResource FooterSeparatorStyle}"/>
                 <TextBlock Grid.Column="4" x:Name="CharCountText" Text="0 ch" Style="{StaticResource FooterTextStyle}"/>
 
-                <!-- Only up while a file is streaming in; collapsed the rest of the
-                     time, taking its separator with it so the footer reads exactly
-                     as it did before. -->
-                <Rectangle Grid.Column="5" x:Name="LoadProgressSeparator" Style="{StaticResource FooterSeparatorStyle}" Visibility="Collapsed"/>
-                <TextBlock Grid.Column="6" x:Name="LoadProgressText" Style="{StaticResource FooterTextStyle}"
-                           Foreground="{StaticResource Accent}" Visibility="Collapsed"/>
-
-                <Rectangle Grid.Column="7" Style="{StaticResource FooterSeparatorStyle}"/>
-                <TextBlock Grid.Column="8" x:Name="PathFooterText" Text="No file" Style="{StaticResource FooterTextStyle}"
-                           TextTrimming="CharacterEllipsis" TextWrapping="NoWrap"/>
-                <Rectangle Grid.Column="9" Style="{StaticResource FooterSeparatorStyle}"/>
-                <TextBlock Grid.Column="10" x:Name="LineEndingText" Text="CRLF" Style="{StaticResource FooterTextStyle}"/>
-                <Rectangle Grid.Column="11" Style="{StaticResource FooterSeparatorStyle}"/>
-                <TextBlock Grid.Column="12" x:Name="EncodingText" Text="UTF-8" Style="{StaticResource FooterTextStyle}"/>
+                <Rectangle Grid.Column="6" Style="{StaticResource FooterSeparatorStyle}"/>
+                <TextBlock Grid.Column="7" x:Name="LineEndingText" Text="CRLF" Style="{StaticResource FooterTextStyle}"/>
+                <Rectangle Grid.Column="8" Style="{StaticResource FooterSeparatorStyle}"/>
+                <TextBlock Grid.Column="9" x:Name="EncodingText" Text="UTF-8" Style="{StaticResource FooterTextStyle}"/>
             </Grid>
         </Border>
     </Grid>
