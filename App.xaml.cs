@@ -1,7 +1,9 @@
 using System;
 using System.IO;
 using System.Windows;
+using System.Windows.Media;
 using System.Windows.Threading;
+using Wpf.Ui.Appearance;
 
 namespace PureNote
 {
@@ -10,7 +12,28 @@ namespace PureNote
         protected override void OnStartup(StartupEventArgs e)
         {
             base.OnStartup(e);
+
+            ApplyAccent();
             DispatcherUnhandledException += OnUnhandledException;
+        }
+
+        // The boxes and buttons in Find and Replace come from WPF-UI, and they
+        // take their accent from brushes its own dictionaries resolve when those
+        // dictionaries are parsed. A StaticResource inside that dictionary is
+        // bound to the brush that was there at the time, so replacing the key
+        // afterwards - which is what the accent overrides in App.xaml do - never
+        // reaches them.
+        //
+        // Measured rather than assumed: with all twelve accent keys overridden to
+        // amber, a TextBox, a RadioButton and a CheckBox still rendered in the
+        // system blue. This is the door WPF-UI leaves for changing them, and it
+        // is the only one that works.
+        private void ApplyAccent()
+        {
+            SolidColorBrush accent = Resources["Accent"] as SolidColorBrush;
+            if (accent == null) return;
+
+            ApplicationAccentColorManager.Apply(accent.Color, ApplicationTheme.Dark);
         }
 
         // A crash would otherwise take the unsaved buffer with it silently. Dump

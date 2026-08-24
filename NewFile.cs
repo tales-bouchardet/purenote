@@ -10,18 +10,32 @@ namespace PureNote
             New_Click(sender, new RoutedEventArgs());
         }
 
+        // A new document opens in a tab of its own rather than over the one in
+        // front. Nothing is discarded, so nothing has to be confirmed.
         private void New_Click(object sender, RoutedEventArgs e)
         {
-            if (!ConfirmDiscardChanges()) return;
-
             bool discardingLarge = IsLargeDocument;
 
             DropFindMatches();
-            Editor.Clear();
 
-            _currentFilePath = null;
-            _currentEncoding = EncodingDetector.Utf8NoBom;
-            _lineEnding = LineEndings.Crlf;
+            if (!CanReuseActiveTab())
+            {
+                Detach(_active);
+
+                _active = NewTab(null, EncodingDetector.Utf8NoBom, LineEndings.Crlf);
+                _active.IsActive = true;
+
+                _switching = true;
+                try
+                {
+                    Editor.Clear();
+                }
+                finally
+                {
+                    _switching = false;
+                }
+            }
+
             _isDirty = false;
 
             UpdatePathDisplay();
@@ -32,9 +46,8 @@ namespace PureNote
             Editor.Focus();
 
             // The one moment a large document is known to have been let go with
-            // nothing waiting on the latency: the editor is empty and the user is
-            // starting from scratch. Compacting here is what stops the space it
-            // occupied from being unusable to the next large file.
+            // nothing waiting on the latency. Compacting here is what stops the
+            // space it occupied from being unusable to the next large file.
             if (discardingLarge) CompactLargeObjectHeap();
         }
     }

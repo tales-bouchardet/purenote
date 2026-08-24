@@ -275,6 +275,88 @@
             </Setter>
         </Style>
 
+        <!-- The × on a tab: always there on the active tab, held back in the same
+             grey the rest of the chrome rests in, and coming forward with a fill
+             behind it only once the pointer is on it. -->
+        <Style x:Key="TabCloseStyle" TargetType="Button">
+            <Setter Property="Width" Value="18"/>
+            <Setter Property="Height" Value="18"/>
+            <Setter Property="Margin" Value="8,0,0,0"/>
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="Foreground" Value="{StaticResource SecondaryText}"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Focusable" Value="False"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Fill" Background="{TemplateBinding Background}" CornerRadius="3">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Fill" Property="Background" Value="{StaticResource HoverBackground}"/>
+                                <Setter Property="Foreground" Value="{StaticResource PrimaryText}"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- A tab, as the new VS Code draws one: a rounded card floating on the
+             strip rather than a wedge cut out of it. The strip is the editor's own
+             colour and the card sits a shade above it, which is what gives it the
+             look of a button.
+
+             Templated over a FileTab rather than assembled in code, so the day
+             there are several of them the only thing that changes is how many
+             items the strip is given. -->
+        <DataTemplate x:Key="FileTabTemplate" DataType="{x:Type local:FileTab}">
+            <Border x:Name="Tab" CornerRadius="5" Margin="0,5,4,5" Padding="10,0,6,0"
+                    Background="Transparent" ToolTip="{Binding FullPath}"
+                    MouseLeftButtonDown="Tab_MouseLeftButtonDown">
+                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                    <TextBlock Text="&#xE7C3;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets"
+                               FontSize="12" Foreground="{StaticResource Accent}"
+                               VerticalAlignment="Center" Margin="0,0,7,0"/>
+
+                    <TextBlock x:Name="TabName" Text="{Binding Name}" FontSize="11.5"
+                               Foreground="{StaticResource SecondaryText}" VerticalAlignment="Center"/>
+
+                    <Button Style="{StaticResource TabCloseStyle}" Click="TabClose_Click">
+                        <Grid>
+                            <!-- The unsaved dot stands where the × stands, and gives
+                                 the place back as soon as the pointer arrives - so a
+                                 tab never says "unsaved" and "close me" at once, and
+                                 the two never fight over the same few pixels. -->
+                            <TextBlock x:Name="CloseGlyph" Text="&#xE8BB;"
+                                       FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="8"
+                                       HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                            <Ellipse x:Name="DirtyDot" Width="8" Height="8" Visibility="Collapsed"
+                                     Fill="{StaticResource Accent}"/>
+                        </Grid>
+                    </Button>
+                </StackPanel>
+            </Border>
+            <DataTemplate.Triggers>
+                <DataTrigger Binding="{Binding IsActive}" Value="True">
+                    <Setter TargetName="Tab" Property="Background" Value="{StaticResource PopupBackground}"/>
+                    <Setter TargetName="TabName" Property="Foreground" Value="{StaticResource PrimaryText}"/>
+                </DataTrigger>
+
+                <DataTrigger Binding="{Binding IsDirty}" Value="True">
+                    <Setter TargetName="CloseGlyph" Property="Visibility" Value="Collapsed"/>
+                    <Setter TargetName="DirtyDot" Property="Visibility" Value="Visible"/>
+                </DataTrigger>
+
+                <!-- Last, so it wins over the dot above. -->
+                <Trigger SourceName="Tab" Property="IsMouseOver" Value="True">
+                    <Setter TargetName="CloseGlyph" Property="Visibility" Value="Visible"/>
+                    <Setter TargetName="DirtyDot" Property="Visibility" Value="Collapsed"/>
+                </Trigger>
+            </DataTemplate.Triggers>
+        </DataTemplate>
+
         <Style x:Key="FooterTextStyle" TargetType="TextBlock">
             <Setter Property="FontFamily" Value="{StaticResource AppFont}"/>
             <Setter Property="Foreground" Value="{StaticResource SecondaryText}"/>
@@ -389,6 +471,7 @@
     <Grid>
         <Grid.RowDefinitions>
             <RowDefinition Height="36"/>
+            <RowDefinition Height="35"/>
             <RowDefinition Height="26"/>
             <RowDefinition Height="*"/>
             <RowDefinition Height="28"/>
@@ -576,6 +659,21 @@
             </StackPanel>
         </Grid>
 
+        <!-- The tab strip. One tab today, and an ItemsControl rather than a hand
+             built row so that stays a fact about the document model and not about
+             the chrome. The strip carries the editor's own colour, which is what
+             leaves the tab card standing above it. -->
+        <Border Grid.Row="1" Background="{StaticResource WindowBackground}">
+            <ItemsControl x:Name="TabStrip" Margin="12,0,0,0"
+                          ItemTemplate="{StaticResource FileTabTemplate}">
+                <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate>
+                        <StackPanel Orientation="Horizontal"/>
+                    </ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+            </ItemsControl>
+        </Border>
+
         <!-- The path, broken into its parts, under the bar rather than in the
              footer. A path reads better as a trail than as one long string, and
              it belongs at the top beside the thing it names.
@@ -584,15 +682,16 @@
              window is wide gets scrolled to its end after every change, so what
              falls off is the front of the trail and the file's own name is always
              the part still on screen. -->
-        <Border Grid.Row="1" Background="{StaticResource WindowBackground}">
+        <Border Grid.Row="2" Background="{StaticResource WindowBackground}">
             <ScrollViewer x:Name="BreadcrumbScroll" Focusable="False"
+                          SizeChanged="Breadcrumbs_SizeChanged"
                           HorizontalScrollBarVisibility="Hidden" VerticalScrollBarVisibility="Disabled">
                 <StackPanel x:Name="BreadcrumbBar" Orientation="Horizontal"
                             VerticalAlignment="Center" Margin="12,0"/>
             </ScrollViewer>
         </Border>
 
-        <Grid Grid.Row="2">
+        <Grid Grid.Row="3">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="Auto"/>
                 <ColumnDefinition Width="*"/>
@@ -637,7 +736,7 @@
 
         <!-- What is left in the footer is what the path was never really with:
              counts on the left, how the file is written on the right. -->
-        <Border Grid.Row="3" Background="{StaticResource ChromeBackground}" BorderBrush="{StaticResource ChromeBorder}" BorderThickness="0,1,0,0">
+        <Border Grid.Row="4" Background="{StaticResource ChromeBackground}" BorderBrush="{StaticResource ChromeBorder}" BorderThickness="0,1,0,0">
             <Grid Margin="12,0">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="Auto"/>

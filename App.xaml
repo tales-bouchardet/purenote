@@ -20,6 +20,16 @@
             <Color x:Key="SystemAccentColorSecondary">#FEB12E</Color>
             <Color x:Key="SystemAccentColorTertiary">#D9930F</Color>
 
+            <!-- These do not reach WPF-UI's own controls, and it is worth saying
+                 so here rather than letting the next person discover it the hard
+                 way. Its dictionaries resolve StaticResource when they are
+                 parsed, so a key replaced afterwards changes nothing that was
+                 already bound - measured, with all twelve of these set to amber
+                 and a TextBox still drawing a blue underline.
+
+                 What actually recolours them is the call in App.xaml.cs. These
+                 stay for the keys that call does not touch, and for anything
+                 outside WPF-UI that looks one of them up. -->
             <SolidColorBrush x:Key="SystemAccentColorBrush" Color="#FEB12E"/>
             <SolidColorBrush x:Key="SystemAccentColorPrimaryBrush" Color="#FFC257"/>
             <SolidColorBrush x:Key="SystemAccentColorSecondaryBrush" Color="#FEB12E"/>

@@ -88,7 +88,13 @@ namespace PureNote
             if (!ConfirmDiscardChanges())
             {
                 e.Cancel = true;
+                return;
             }
+
+            // Only once leaving is settled. The spill files hold work that was
+            // emptied out of memory, and until the question above is answered
+            // they are the only copy of it.
+            DiscardAllSpills();
         }
 
         // Without this, DWM has no idea this window is dark-themed and falls

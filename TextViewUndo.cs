@@ -17,7 +17,7 @@ namespace PureNote
         private const int MaxUndoChars = 8 * 1024 * 1024;
         private const int MaxUndoEntries = 256;
 
-        private sealed class UndoEntry
+        internal sealed class UndoEntry
         {
             public int Offset;
             public string Removed;
@@ -35,9 +35,88 @@ namespace PureNote
             }
         }
 
-        private readonly List<UndoEntry> _undo = new List<UndoEntry>();
-        private readonly List<UndoEntry> _redo = new List<UndoEntry>();
+        private List<UndoEntry> _undo = new List<UndoEntry>();
+        private List<UndoEntry> _redo = new List<UndoEntry>();
         private int _undoChars;
+
+        // Everything the editor is holding on behalf of one document, lifted out
+        // whole so a second document can be put in and this one put back exactly
+        // as it was.
+        //
+        // The undo history is the reason this exists. SetDocument resets it,
+        // which is right when a file is being opened over another and wrong when
+        // a tab is being stepped away from - without this, coming back to a tab
+        // would find it unable to undo anything that happened before you left.
+        //
+        // Nested so it can name UndoEntry, and so that what a tab is holding on
+        // the editor's behalf stays the editor's own shape rather than something
+        // the rest of the program can take apart.
+        internal sealed class EditorState
+        {
+            internal TextDocument Document;
+            internal List<UndoEntry> Undo;
+            internal List<UndoEntry> Redo;
+            internal int UndoChars;
+            internal int CaretOffset;
+            internal int SelectionAnchor;
+            internal double VerticalOffset;
+            internal double HorizontalOffset;
+        }
+
+        // The lists are handed over rather than copied - the caller is taking
+        // them, not borrowing them - and fresh ones are left behind for whatever
+        // document arrives next.
+        public EditorState CaptureState()
+        {
+            EditorState state = new EditorState
+            {
+                Document = _document,
+                Undo = _undo,
+                Redo = _redo,
+                UndoChars = _undoChars,
+                CaretOffset = _caretOffset,
+                SelectionAnchor = _selectionAnchor,
+                VerticalOffset = _verticalOffset,
+                HorizontalOffset = _horizontalOffset
+            };
+
+            _undo = new List<UndoEntry>();
+            _redo = new List<UndoEntry>();
+            _undoChars = 0;
+
+            return state;
+        }
+
+        public void RestoreState(EditorState state)
+        {
+            _document = state.Document ?? new TextDocument();
+            _undo = state.Undo ?? new List<UndoEntry>();
+            _redo = state.Redo ?? new List<UndoEntry>();
+            _undoChars = state.UndoChars;
+
+            _caretOffset = Clamp(state.CaretOffset, 0, _document.Length);
+            _selectionAnchor = Clamp(state.SelectionAnchor, 0, _document.Length);
+            _preferredColumnValid = false;
+
+            _matches = null;
+            _currentMatch = -1;
+
+            // Both offsets are set through the setters, which clamp against an
+            // extent that only makes sense once the new document is in place.
+            _verticalOffset = 0;
+            _horizontalOffset = 0;
+
+            InvalidateLineCache();
+            MeasureLongestLine();
+            InvalidateScrollInfo();
+
+            SetVerticalOffset(state.VerticalOffset);
+            SetHorizontalOffset(state.HorizontalOffset);
+
+            InvalidateVisual();
+            RaiseDocumentChanged();
+            RaiseCaretChanged();
+        }
 
         public bool CanUndo { get { return _undo.Count > 0; } }
         public bool CanRedo { get { return _redo.Count > 0; } }

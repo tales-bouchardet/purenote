@@ -2,7 +2,6 @@ using System;
 using System.IO;
 using System.Windows;
 using System.Windows.Controls;
-using System.Windows.Documents;
 using System.Windows.Media;
 
 namespace PureNote
@@ -54,13 +53,26 @@ namespace PureNote
         // TextBlocks at those moments costs nothing worth avoiding.
         private void UpdatePathDisplay()
         {
+            UpdateTabs();
+
+            BreadcrumbScroll.ToolTip = _currentFilePath;
+            BuildBreadcrumbs();
+        }
+
+        // Rebuilt when the path changes and again when the bar changes width,
+        // because how much of a path fits is a question about both.
+        private void Breadcrumbs_SizeChanged(object sender, SizeChangedEventArgs e)
+        {
+            if (e.WidthChanged) BuildBreadcrumbs();
+        }
+
+        private void BuildBreadcrumbs()
+        {
             BreadcrumbBar.Children.Clear();
 
             if (string.IsNullOrEmpty(_currentFilePath))
             {
                 BreadcrumbBar.Children.Add(MakeCrumb(NoFileLabel, Theme.Crumb, 0));
-                BreadcrumbScroll.ToolTip = null;
-                BreadcrumbScroll.ScrollToLeftEnd();
                 return;
             }
 
@@ -74,44 +86,55 @@ namespace PureNote
 
                 bool leaf = i == parts.Length - 1;
 
-                BreadcrumbBar.Children.Add(leaf
-                    ? MakeLeafCrumb(parts[i])
-                    : MakeCrumb(parts[i], Theme.Crumb, 0));
+                // Unsaved work shows as the colour of the file's own name and
+                // nothing else. A mark beside it would be a second thing saying
+                // what the colour already says, and the tab above carries its own
+                // dot for anyone who reads that first.
+                BreadcrumbBar.Children.Add(MakeCrumb(parts[i],
+                    leaf ? (_isDirty ? Theme.Dirty : Theme.CrumbLeaf) : Theme.Crumb, 0));
             }
 
-            BreadcrumbScroll.ToolTip = _currentFilePath;
-
-            // Measured before it is scrolled, or there is nothing to scroll yet.
-            // A path that fits leaves this a no-op; one that does not gives up its
-            // front rather than the name at its end.
-            BreadcrumbScroll.UpdateLayout();
-            BreadcrumbScroll.ScrollToRightEnd();
+            TrimBreadcrumbs();
         }
 
-        // The file's own name, and the only crumb the unsaved mark says anything
-        // about.
+        // Drops folders off the front until what is left fits, and says so with a
+        // single ellipsis.
         //
-        // The mark trails the name rather than leading it, raised and small: set
-        // level and in front, an asterisk pushes the name sideways every time the
-        // document goes from clean to dirty and back, and the eye reads the
-        // punctuation before the word it came for.
-        private TextBlock MakeLeafCrumb(string name)
+        // The bar used to be scrolled to its end instead, which kept the file
+        // name in view but cut the front of the trail mid-word - leaving a stray
+        // half of a folder name and a separator pointing at nothing. A path is a
+        // list of names, so the thing to drop is a name, not a number of pixels.
+        private void TrimBreadcrumbs()
         {
-            TextBlock crumb = MakeCrumb(string.Empty, _isDirty ? Theme.Dirty : Theme.CrumbLeaf, 0);
+            double available = BreadcrumbScroll.ActualWidth - CrumbSideMargins;
 
-            crumb.Inlines.Add(new Run(name));
+            // Before the first layout there is no width to fit into, and the
+            // SizeChanged that follows will ask again.
+            if (available <= 0) return;
 
-            if (_isDirty)
+            BreadcrumbScroll.UpdateLayout();
+            if (BreadcrumbBar.ActualWidth <= available) return;
+
+            BreadcrumbBar.Children.Insert(0, MakeCrumb("›", Theme.Crumb, 6));
+            BreadcrumbBar.Children.Insert(0, MakeCrumb("…", Theme.Crumb, 0));
+
+            // Index 0 is the ellipsis and 1 its separator; 2 is the first folder
+            // still being shown, and 3 the separator after it. Below five
+            // children there is nothing left to give up but the file name itself,
+            // which is the one thing this exists to keep.
+            while (BreadcrumbBar.Children.Count >= 5)
             {
-                crumb.Inlines.Add(new Run("*")
-                {
-                    BaselineAlignment = BaselineAlignment.Superscript,
-                    FontSize = 8
-                });
-            }
+                BreadcrumbScroll.UpdateLayout();
+                if (BreadcrumbBar.ActualWidth <= available) return;
 
-            return crumb;
+                BreadcrumbBar.Children.RemoveAt(2);
+                BreadcrumbBar.Children.RemoveAt(2);
+            }
         }
+
+        // The panel's own left and right margin, which the width it has to fit
+        // into does not include.
+        private const double CrumbSideMargins = 24;
 
         private static TextBlock MakeCrumb(string text, Brush brush, double sideMargin)
         {

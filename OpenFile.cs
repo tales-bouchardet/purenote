@@ -17,8 +17,8 @@ namespace PureNote
 
         private void Open_Click(object sender, RoutedEventArgs e)
         {
-            if (!ConfirmDiscardChanges()) return;
-
+            // Nothing is being discarded any more: a file opens into a tab of its
+            // own beside whatever was already there.
             OpenFileDialog dialog = new OpenFileDialog();
             dialog.Filter = "All files (*.*)|*.*";
 
@@ -110,7 +110,27 @@ namespace PureNote
             }
 
             DropFindMatches();
-            Editor.SetDocument(document);
+
+            // Into the empty untitled tab if that is all there is, and into a tab
+            // of its own otherwise. Either way the tab is put in front before the
+            // document goes in, because the document is the tab's now and the
+            // window reads it through whichever tab that is.
+            if (!CanReuseActiveTab())
+            {
+                Detach(_active);
+                _active = NewTab(path, encoding, shape.LineEnding);
+                _active.IsActive = true;
+            }
+
+            _switching = true;
+            try
+            {
+                Editor.SetDocument(document);
+            }
+            finally
+            {
+                _switching = false;
+            }
 
             _currentFilePath = path;
             _currentEncoding = encoding;
@@ -121,6 +141,7 @@ namespace PureNote
             UpdateCounts();
             SetEncodingChecked(encoding);
             SetLineEndingChecked(_lineEnding);
+            Editor.Focus();
 
             // The document that was just replaced is the only large thing this
             // let go of - the file itself was never held. Letting go of it is not

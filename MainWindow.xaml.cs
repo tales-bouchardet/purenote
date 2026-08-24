@@ -28,17 +28,16 @@ namespace PureNote
             return true;
         }
 
-        private string _currentFilePath;
-        private Encoding _currentEncoding = EncodingDetector.Utf8NoBom;
-        private string _lineEnding = LineEndings.Crlf;
-        private bool _isDirty;
-
         public MainWindow()
         {
             InitializeComponent();
 
             SimplifiedMatchRadio.IsChecked = true;
             ReplaceSimpleRadio.IsChecked = true;
+
+            // Before anything reads _currentEncoding or _isDirty: those are the
+            // active tab's now, and until there is one they only answer defaults.
+            InitialiseTabs();
             ElevationText.Text = ElevationDetector.Detect();
             SetEncodingChecked(_currentEncoding);
             SetLineEndingChecked(_lineEnding);
@@ -65,6 +64,10 @@ namespace PureNote
 
             UpdateCounts();
 
+            // The tab and the breadcrumbs are built in code, so unlike the labels
+            // they replaced they start out empty and have to be asked for once.
+            UpdatePathDisplay();
+
             Loaded += MainWindow_Loaded;
             SourceInitialized += Window_SourceInitialized;
         }
@@ -75,13 +78,15 @@ namespace PureNote
 
             Editor.Focus();
 
+            // Every path given, not just the first: a window that holds tabs can
+            // hold what "open with" hands it when several files are selected at
+            // once, and each opens into a tab of its own.
             string[] args = Environment.GetCommandLineArgs();
-            if (args.Length < 2) return;
 
-            string path = args[1];
-            if (!File.Exists(path)) return;
-
-            LoadFile(path);
+            for (int i = 1; i < args.Length; i++)
+            {
+                if (File.Exists(args[i])) LoadFile(args[i]);
+            }
         }
 
         // The one place an edit is heard about. There is no longer any question
@@ -93,7 +98,10 @@ namespace PureNote
             UpdateCounts();
             LineNumbers_Invalidate();
 
-            if (!_isDirty)
+            // A tab being swapped in raises this too - putting a document into
+            // the editor is a change to what it is holding - and that is not the
+            // user having typed. See _switching.
+            if (!_switching && !_isDirty)
             {
                 _isDirty = true;
                 UpdatePathDisplay();
