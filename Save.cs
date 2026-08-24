@@ -43,9 +43,6 @@ namespace PureNote
 
         private void SaveToFile(string path)
         {
-            // Encodings like Windows-1252 or ASCII silently substitute '?' for
-            // anything they can't express, so the loss is invisible until the file
-            // is reopened. Let the user back out while the text is still in memory.
             if (!EncodingDetector.CanRepresent(Editor.Document, _currentEncoding))
             {
                 MessageBoxResult answer = AppMessageBox.Show(this,
@@ -63,14 +60,6 @@ namespace PureNote
             UpdatePathDisplay();
         }
 
-        // Writes through a temporary file in the same directory and swaps it into
-        // place, so a write that fails partway (disk full, drive removed) leaves
-        // the original file intact instead of truncated.
-        //
-        // The document is streamed straight into the encoder, converting line
-        // endings on the way, so saving allocates a 64 KB chunk rather than the
-        // two full copies of the document it used to: one for the converted text
-        // and one for the string that conversion was flattened into.
         private bool WriteFile(string path)
         {
             string temp = path + ".purenote-tmp";

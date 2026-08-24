@@ -29,9 +29,6 @@ namespace PureNote
                 : hasOk ? MessageBoxResult.OK
                 : MessageBoxResult.No;
 
-            // Dismissing the window itself (Alt+F4, Esc, the task bar) has to land
-            // on the same answer as the close button, otherwise Result stays None
-            // and callers can't tell "backed out" from "chose to proceed".
             Closing += (s, e) => { if (Result == MessageBoxResult.None) Result = _dismissResult; };
         }
 

@@ -8,8 +8,6 @@ namespace PureNote
 {
     public partial class MainWindow
     {
-        // Ctrl+H, and the same reasoning as Find_Executed: the shortcut reopens
-        // and refocuses rather than toggling.
         private void Replace_Executed(object sender, ExecutedRoutedEventArgs e)
         {
             OpenReplace();
@@ -116,9 +114,6 @@ namespace PureNote
                 return;
             }
 
-            // This is the one edit that can exceed what undo will hold, and the
-            // only honest thing to do is say so before doing it rather than let
-            // Ctrl+Z quietly turn out to be unavailable afterwards.
             if (!TextView.FitsInUndoBudget(length, (int)resulting))
             {
                 MessageBoxResult answer = AppMessageBox.Show(this,
@@ -137,17 +132,11 @@ namespace PureNote
             }
             catch (OutOfMemoryException)
             {
-                // Either the new text was never built or it has already been
-                // taken; nothing here leaves the editor holding half a document.
                 ReportOutOfMemory("replace that many matches");
                 ReplaceStatusText.Text = "Out of memory";
             }
         }
 
-        // Built into an array sized from the match count rather than through a
-        // StringBuilder, so the result exists once instead of twice - the builder
-        // and the string it was flattened into were both live at the moment the
-        // document was about to allocate its own copy.
         private string BuildReplaced(List<int> matches, string term, string replacement, int resulting)
         {
             TextDocument document = Editor.Document;

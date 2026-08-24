@@ -9,7 +9,6 @@ namespace PureNote
         private static SolidColorBrush _allMatches;
         private static SolidColorBrush _currentMatchFill;
         private static SolidColorBrush _currentMatchStroke;
-        private static SolidColorBrush _footerText;
         private static SolidColorBrush _crumb;
         private static SolidColorBrush _crumbLeaf;
 
@@ -20,12 +19,6 @@ namespace PureNote
         public static SolidColorBrush CurrentMatchFill => _currentMatchFill ?? (_currentMatchFill = Frozen(WithAlpha(AccentColor, 85)));
         public static SolidColorBrush CurrentMatchStroke => _currentMatchStroke ?? (_currentMatchStroke = Frozen(AccentColor));
 
-        public static SolidColorBrush FooterText => _footerText ?? (_footerText = Palette("SecondaryText"));
-
-        // The folders a file sits in, and the file itself. Two shades rather than
-        // one: the trail is context and the name at the end of it is the answer,
-        // and reading them at the same weight makes the eye hunt for the part it
-        // came for.
         public static SolidColorBrush Crumb => _crumb ?? (_crumb = Palette("MutedText"));
         public static SolidColorBrush CrumbLeaf => _crumbLeaf ?? (_crumbLeaf = Palette("EditorText"));
 

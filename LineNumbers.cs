@@ -18,9 +18,6 @@ namespace PureNote
             }
         }
 
-        // The gutter works out its own visible range from the view's scroll
-        // offset when it paints, so every one of these is just "the range may
-        // have moved, repaint".
         private void LineNumbers_Invalidate()
         {
             if (!_lineNumbersEnabled) return;

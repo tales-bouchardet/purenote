@@ -15,9 +15,6 @@ namespace PureNote
 
         private void TopBar_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
         {
-            // Double click on the caption maximises and restores. Every window on
-            // Windows does this, and a title bar that does not is the sort of
-            // thing people notice without being able to say what is missing.
             if (e.ClickCount == 2)
             {
                 ToggleMaximised();
@@ -26,8 +23,6 @@ namespace PureNote
 
             if (WindowState == WindowState.Maximized) RestoreUnderCursor(e);
 
-            // Throws if the button came up in between - which it can, because
-            // restoring above takes long enough for a quick click to finish.
             try
             {
                 DragMove();
@@ -37,11 +32,6 @@ namespace PureNote
             }
         }
 
-        // Dragging a maximised window restores it and keeps the drag going,
-        // rather than moving a full-screen window around. The restored window is
-        // placed so the pointer stays at the same proportional spot along the
-        // caption, which is what makes it feel like the window was picked up
-        // rather than teleported.
         private void RestoreUnderCursor(MouseButtonEventArgs e)
         {
             Point inWindow = e.GetPosition(this);
@@ -49,9 +39,6 @@ namespace PureNote
 
             double across = inWindow.X / ActualWidth;
 
-            // PointToScreen answers in physical pixels while Left and Top are
-            // set in device-independent ones, so on any display that is not at
-            // 100% the two have to be reconciled or the window lands elsewhere.
             DpiScale dpi = VisualTreeHelper.GetDpi(this);
             Point onScreen = PointToScreen(inWindow);
 
@@ -91,16 +78,9 @@ namespace PureNote
                 return;
             }
 
-            // Only once leaving is settled. The spill files hold work that was
-            // emptied out of memory, and until the question above is answered
-            // they are the only copy of it.
             DiscardAllSpills();
         }
 
-        // Without this, DWM has no idea this window is dark-themed and falls
-        // back to its light-mode fill for chrome it composites itself (title
-        // bar, and the placeholder it paints over freshly-exposed area while
-        // live-resizing) — that's the white strip/flash during a drag-resize.
         private void Window_SourceInitialized(object sender, System.EventArgs e)
         {
             HwndSource source = (HwndSource)PresentationSource.FromVisual(this);

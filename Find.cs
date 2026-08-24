@@ -9,10 +9,6 @@ namespace PureNote
 {
     public partial class MainWindow
     {
-        // Long enough to swallow the gaps inside a typed word, short enough that
-        // the results still feel like they arrive with the keystroke. Every
-        // recompute walks the whole document, and typing "undefined" one letter
-        // at a time would otherwise pay that nine times over, once per prefix.
         private const int FindDebounceMs = 150;
 
         private readonly List<int> _findMatches = new List<int>();
@@ -21,10 +17,6 @@ namespace PureNote
         private DispatcherTimer _findDebounceTimer;
         private Action _findDebouncedWork;
 
-        // Ctrl+F. Unlike the menu item this does not toggle: pressing it with the
-        // panel already open puts the caret back in the box with the old term
-        // selected, which is how a user restarts a search. Toggling would make
-        // reaching for the shortcut twice in a row close the thing being asked for.
         private void Find_Executed(object sender, ExecutedRoutedEventArgs e)
         {
             OpenFind();
@@ -54,9 +46,6 @@ namespace PureNote
         {
             FindPopup.IsOpen = false;
 
-            // Drops the match list rather than just the highlighting: a closed
-            // find has no use for either, and a search queued a moment ago would
-            // otherwise still fire and walk the whole document for nothing.
             DropFindMatches();
         }
 
@@ -69,18 +58,12 @@ namespace PureNote
             });
         }
 
-        // Coalesces a burst of keystrokes into one search. Only the typing paths
-        // go through here: opening the popup, stepping between matches and
-        // switching match mode are all single deliberate actions, and making the
-        // user wait out a timer for those would be latency for its own sake.
         private void DebounceFind(Action work)
         {
             _findDebouncedWork = work;
 
             if (_findDebounceTimer == null)
             {
-                // Input priority so a long search takes its turn against the
-                // typing that queued it rather than cutting in front.
                 _findDebounceTimer = new DispatcherTimer(DispatcherPriority.Input)
                 {
                     Interval = TimeSpan.FromMilliseconds(FindDebounceMs)
@@ -96,8 +79,6 @@ namespace PureNote
                 };
             }
 
-            // Restarting is what makes it a debounce rather than a throttle: the
-            // search happens once the typing pauses, not every 150 ms through it.
             _findDebounceTimer.Stop();
             _findDebounceTimer.Start();
         }
@@ -120,8 +101,6 @@ namespace PureNote
 
             _findCurrentIndex = -1;
 
-            // A common term in a large file leaves a list holding millions of
-            // ints; Clear on its own keeps every byte of that capacity.
             _findMatches.Clear();
             if (_findMatches.Capacity > 1024) _findMatches.Capacity = 0;
 
@@ -169,9 +148,6 @@ namespace PureNote
             TextSearch.FindAll(Editor.Document, FindTextBox.Text, ExactMatchRadio.IsChecked == true, _findMatches);
         }
 
-        // The view draws the highlighting itself, from the same list, at the
-        // moment it draws the line. There is no overlay to keep in step and no
-        // second opinion about where a line sits.
         private void PublishMatches()
         {
             Editor.SetMatches(_findMatches, FindTextBox.Text.Length, _findCurrentIndex,
@@ -185,15 +161,8 @@ namespace PureNote
             UpdateFindStatus();
         }
 
-        // advance: true for an explicit Next (skip past the current match), false
-        // while the search term is still being typed - there the current match is
-        // the one the user is refining, so re-searching must not step over it.
         private void GoToMatch(bool forward, bool advance = true)
         {
-            // A debounced search still in flight was computed against the text as
-            // it stood before the last edit, so settle it before trusting the
-            // offsets - which also makes Enter answer immediately instead of
-            // waiting out the timer.
             FlushPendingFind();
 
             if (_findMatches.Count == 0)
@@ -203,9 +172,6 @@ namespace PureNote
                 return;
             }
 
-            // The list is ascending, so locate the insertion point rather than
-            // scanning it - a common term in a large file yields tens of
-            // thousands of matches and this runs on every keystroke in the box.
             if (forward)
             {
                 int searchFrom = advance ? Editor.SelectionStart + Editor.SelectionLength : Editor.SelectionStart;

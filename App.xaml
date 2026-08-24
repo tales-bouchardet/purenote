@@ -10,41 +10,9 @@
             </ResourceDictionary.MergedDictionaries>
 
             <FontFamily x:Key="AppFont">pack://application:,,,/font/#DM Mono</FontFamily>
-            <FontFamily x:Key="ContentControlThemeFontFamily">pack://application:,,,/font/#DM Mono</FontFamily>
 
             <SolidColorBrush x:Key="Accent" Color="#FEB12E"/>
             <SolidColorBrush x:Key="SelectionBackground" Color="#6A4A12"/>
-
-            <Color x:Key="SystemAccentColor">#FEB12E</Color>
-            <Color x:Key="SystemAccentColorPrimary">#FFC257</Color>
-            <Color x:Key="SystemAccentColorSecondary">#FEB12E</Color>
-            <Color x:Key="SystemAccentColorTertiary">#D9930F</Color>
-
-            <!-- These do not reach WPF-UI's own controls, and it is worth saying
-                 so here rather than letting the next person discover it the hard
-                 way. Its dictionaries resolve StaticResource when they are
-                 parsed, so a key replaced afterwards changes nothing that was
-                 already bound - measured, with all twelve of these set to amber
-                 and a TextBox still drawing a blue underline.
-
-                 What actually recolours them is the call in App.xaml.cs. These
-                 stay for the keys that call does not touch, and for anything
-                 outside WPF-UI that looks one of them up. -->
-            <SolidColorBrush x:Key="SystemAccentColorBrush" Color="#FEB12E"/>
-            <SolidColorBrush x:Key="SystemAccentColorPrimaryBrush" Color="#FFC257"/>
-            <SolidColorBrush x:Key="SystemAccentColorSecondaryBrush" Color="#FEB12E"/>
-            <SolidColorBrush x:Key="SystemAccentColorTertiaryBrush" Color="#D9930F"/>
-
-            <SolidColorBrush x:Key="AccentFillColorDefaultBrush" Color="#FEB12E"/>
-            <SolidColorBrush x:Key="AccentFillColorSecondaryBrush" Color="#EBA328"/>
-            <SolidColorBrush x:Key="AccentFillColorTertiaryBrush" Color="#D9930F"/>
-            <SolidColorBrush x:Key="AccentFillColorSelectedTextBackgroundBrush" Color="#FEB12E"/>
-
-            <SolidColorBrush x:Key="AccentTextFillColorPrimaryBrush" Color="#FEB12E"/>
-            <SolidColorBrush x:Key="AccentTextFillColorSecondaryBrush" Color="#FFC257"/>
-            <SolidColorBrush x:Key="AccentTextFillColorTertiaryBrush" Color="#FFD48A"/>
-
-            <SolidColorBrush x:Key="AccentControlElevationBorderBrush" Color="#D9930F"/>
 
             <SolidColorBrush x:Key="WindowBackground" Color="#1E1E1E"/>
             <SolidColorBrush x:Key="ChromeBackground" Color="#252526"/>

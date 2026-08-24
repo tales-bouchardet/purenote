@@ -4,13 +4,6 @@ using System.Windows.Input;
 
 namespace PureNote
 {
-    // Keyboard, mouse and clipboard.
-    //
-    // A TextBox brought all of this with it, and giving it up is the real price
-    // of the rewrite - everything here is behaviour that used to be free. It is
-    // written out rather than approximated: the caret keeps a preferred column
-    // across vertical moves, word motion follows the same character classes the
-    // rest of Windows uses, and a drag past the edge of the view scrolls.
     internal sealed partial class TextView
     {
         private bool _dragging;
@@ -30,7 +23,6 @@ namespace PureNote
             CommandBindings.Add(new CommandBinding(command, handler));
         }
 
-        // ---- typing ----------------------------------------------------------
 
         protected override void OnTextInput(TextCompositionEventArgs e)
         {
@@ -38,9 +30,6 @@ namespace PureNote
 
             if (IsReadOnly || string.IsNullOrEmpty(e.Text)) return;
 
-            // Control characters arrive here too; the ones that mean something
-            // are handled as keys, and the rest would be inserted as invisible
-            // rubbish.
             if (e.Text.Length == 1 && e.Text[0] < ' ' && e.Text[0] != '\t') return;
 
             InsertText(e.Text);
@@ -132,8 +121,6 @@ namespace PureNote
             return Math.Max(1, (int)(ViewportHeight / LineHeight) - 1);
         }
 
-        // Home goes to the first non-blank character, and to column zero when it
-        // is already there - the behaviour every code editor has.
         private int HomeOf(int line)
         {
             int start = _document.GetLineStart(line);
@@ -155,9 +142,6 @@ namespace PureNote
         {
             int line = CaretLine;
 
-            // Both lines go through the same preparation the painting uses, so
-            // stepping down through a minified file reads the handful of columns
-            // around the caret rather than a megabyte of line on each keystroke.
             if (!_preferredColumnValid)
             {
                 VisibleLine current = GetVisibleLine(line);
@@ -173,9 +157,6 @@ namespace PureNote
                 ? Math.Min(_preferredColumn, destination.Length)
                 : TextLineRenderer.ToOffset(destination.Text, _preferredColumn);
 
-            // Deliberately does not clear the preferred column: holding it is the
-            // whole point, so that passing through a short line and out the far
-            // side returns to the column the caret started in.
             _caretOffset = Clamp(destination.Start + offsetInLine, 0, _document.Length);
             if (!extend) _selectionAnchor = _caretOffset;
 
@@ -185,8 +166,6 @@ namespace PureNote
             RaiseCaretChanged();
         }
 
-        // Surrogate pairs move as one character in both directions, so the caret
-        // can never be put between the halves of an emoji.
         private int NextCaretStop(int offset)
         {
             if (offset >= _document.Length) return _document.Length;
@@ -222,8 +201,6 @@ namespace PureNote
             int length = _document.Length;
             if (offset >= length) return length;
 
-            // Skips the run the caret is standing in, then the whitespace after
-            // it, landing on the start of the next thing.
             CharClass start = ClassOf(offset);
             while (offset < length && ClassOf(offset) == start) offset++;
             while (offset < length && ClassOf(offset) == CharClass.Space && _document[offset] != '\n') offset++;
@@ -244,7 +221,6 @@ namespace PureNote
             return offset;
         }
 
-        // ---- mouse -----------------------------------------------------------
 
         protected override void OnMouseLeftButtonDown(MouseButtonEventArgs e)
         {
@@ -267,12 +243,6 @@ namespace PureNote
             e.Handled = true;
         }
 
-        // The context menu acts on the selection, so the right click that opens it
-        // has to settle what the selection is first. Clicking inside an existing
-        // one keeps it - that is what the user is pointing at. Clicking anywhere
-        // else moves the caret there and drops the selection, exactly as a left
-        // click would, so the menu never turns out to have acted on something off
-        // screen that was selected several minutes ago.
         protected override void OnMouseRightButtonDown(MouseButtonEventArgs e)
         {
             base.OnMouseRightButtonDown(e);
@@ -297,8 +267,6 @@ namespace PureNote
 
             Point point = e.GetPosition(this);
 
-            // A drag that leaves the top or bottom of the view keeps selecting,
-            // pulling the document past the pointer a line at a time.
             if (point.Y < 0) SetVerticalOffset(_verticalOffset - LineHeight);
             else if (point.Y > ViewportHeight) SetVerticalOffset(_verticalOffset + LineHeight);
 
@@ -337,14 +305,11 @@ namespace PureNote
             int line = _document.GetLineFromOffset(offset);
             int start = _document.GetLineStart(line);
 
-            // Takes the break as well, so that a triple-click followed by a
-            // delete removes the line rather than leaving an empty one.
             int end = line + 1 < _document.LineCount ? _document.GetLineStart(line + 1) : _document.Length;
 
             Select(start, end - start);
         }
 
-        // ---- clipboard -------------------------------------------------------
 
         public void Copy()
         {
@@ -360,12 +325,6 @@ namespace PureNote
             if (PutOnClipboard(SelectedText)) DeleteSelection();
         }
 
-        // WPF's own copy publishes the selection twice - as UnicodeText and again
-        // as an ANSI conversion of it - and OLE then marshals each into its own
-        // unmanaged block. That is four copies of the selection in flight to
-        // answer a request for one. Windows synthesises the ANSI form on demand
-        // for anything that still wants it, so publishing one format loses
-        // nothing and costs a quarter as much.
         private bool PutOnClipboard(string text)
         {
             try
@@ -403,9 +362,6 @@ namespace PureNote
 
             EndTypingRun();
 
-            // Normalised on the way in for the same reason loading normalises:
-            // inside the document a break is one character, whatever the thing it
-            // was copied from used.
             InsertText(Normalise(incoming));
         }
 

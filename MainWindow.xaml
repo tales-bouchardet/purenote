@@ -36,13 +36,6 @@
             <Setter Property="Background" Value="Transparent"/>
             <Setter Property="VerticalAlignment" Value="Stretch"/>
 
-            <!-- A horizontal StackPanel rather than the WrapPanel a Menu uses by
-                 default, because a StackPanel stretches its children across the
-                 other axis and a WrapPanel leaves them at their desired size.
-                 That is what makes the items fill the height of the bar - which
-                 is not only how the bar looks right, but where its dropdowns
-                 open from: a Popup placed below a centred item opens ten pixels
-                 up inside the bar. -->
             <Setter Property="ItemsPanel">
                 <Setter.Value>
                     <ItemsPanelTemplate>
@@ -59,12 +52,6 @@
             </Setter>
         </Style>
 
-        <!-- The surface a dropdown is drawn on. The margin is there for the
-             shadow to fall into: a popup with AllowsTransparency can draw
-             outside its content, but only into space the content has left it.
-             It costs nothing in placement - a Popup positions its child's
-             content, not its margin box, so the visible border still lands on
-             the placement point and no offset is needed to put it back. -->
         <Style x:Key="MenuSurfaceStyle" TargetType="Border">
             <Setter Property="Background" Value="{StaticResource PopupBackground}"/>
             <Setter Property="BorderBrush" Value="{StaticResource PanelBorder}"/>
@@ -80,39 +67,13 @@
             </Setter>
         </Style>
 
-        <!-- Top of the bar: File, View, Find, Replace. Nothing but a label and a
-             fill behind it, tight enough that the four of them read as one strip
-             rather than as four buttons.
-
-             They sit back at rest and come forward under the pointer. The colour
-             is set here on the Border rather than on the MenuItem so it reaches
-             the label by inheritance and stays out of the way of the submenu
-             template, which wants its own. Note that a Foreground written on the
-             MenuItem in the markup would outrank all of this - which is why the
-             four of them no longer carry one. -->
         <ControlTemplate x:Key="TopLevelMenuItemTemplate" TargetType="MenuItem">
-            <!-- The margin is on this Border and deliberately not on the MenuItem.
-                 The item still measures the full height of the bar, which is what
-                 the dropdown is placed against; only the fill behind the label
-                 pulls in from the edges. Putting it on the item instead would
-                 shorten the item and send the menu back to opening inside the
-                 bar. -->
             <Border x:Name="Fill" Background="{TemplateBinding Background}" Padding="9,4"
                     Margin="0,4" CornerRadius="4"
                     TextElement.Foreground="{StaticResource SecondaryText}">
                 <Grid>
                     <ContentPresenter ContentSource="Header" RecognizesAccessKey="True" VerticalAlignment="Center"/>
 
-                    <!-- Anchored to the MenuItem itself. Left to itself a Popup
-                         inside a template anchors to its own parent in the visual
-                         tree - here the Grid, which sits inside the Border's
-                         padding - so the menu opened a padding's worth up and to
-                         the side of where it looked like it should.
-
-                         No offsets: with the item filling the bar and the target
-                         named, the placement point is already the item's
-                         bottom-left corner and the dropdown hangs flush off the
-                         bar. -->
                     <Popup x:Name="PART_Popup"
                            PlacementTarget="{Binding RelativeSource={RelativeSource TemplatedParent}}"
                            Placement="Bottom"
@@ -130,8 +91,6 @@
                     <Setter TargetName="Fill" Property="TextElement.Foreground" Value="{StaticResource PrimaryText}"/>
                 </Trigger>
 
-                <!-- Held bright for as long as the menu is down, so the one that
-                     is open is the one that looks open. -->
                 <Trigger Property="IsSubmenuOpen" Value="True">
                     <Setter TargetName="Fill" Property="Background" Value="{StaticResource HoverBackground}"/>
                     <Setter TargetName="Fill" Property="TextElement.Foreground" Value="{StaticResource PrimaryText}"/>
@@ -144,16 +103,7 @@
             </ControlTemplate.Triggers>
         </ControlTemplate>
 
-        <!-- Inside a dropdown, and inside the editor's context menu.
-             Four columns, and the two on the outside are a fixed width on
-             purpose: a check gutter that sizes to its contents is empty until
-             something is ticked, and then every label on the menu jumps sideways.
-             The third column is the shortcut, right up against the chevron
-             column, which is the part that makes a menu read as a real one. -->
         <ControlTemplate x:Key="SubmenuItemTemplate" TargetType="MenuItem">
-            <!-- A shade back from white at rest, white under the pointer, the
-                 same way the bar behaves. Not as far back as the bar items: these
-                 are the thing being read, not a label waiting to be pointed at. -->
             <Border x:Name="Fill" Background="{TemplateBinding Background}"
                     TextElement.Foreground="{StaticResource EditorText}">
                 <Grid MinHeight="24">
@@ -179,10 +129,6 @@
                           Data="M0,0 L4,4 L0,8" Stroke="{StaticResource SecondaryText}" StrokeThickness="1.2"
                           HorizontalAlignment="Center" VerticalAlignment="Center"/>
 
-                    <!-- Same anchoring. The five it comes up by is the surface's
-                         own border and padding: a submenu reads as attached when
-                         its first item lines up with the item that opened it, not
-                         when its frame does. -->
                     <Popup x:Name="PART_Popup"
                            PlacementTarget="{Binding RelativeSource={RelativeSource TemplatedParent}}"
                            Placement="Right" VerticalOffset="-5"
@@ -206,10 +152,6 @@
                     <Setter TargetName="SubmenuArrow" Property="Visibility" Value="Visible"/>
                 </Trigger>
 
-                <!-- Last, so it wins over IsHighlighted: a disabled item that
-                     still lights up under the pointer reads as clickable. The
-                     shortcut greys out with the label, or it goes on looking
-                     available next to something that is not. -->
                 <Trigger Property="IsEnabled" Value="False">
                     <Setter TargetName="Fill" Property="Background" Value="Transparent"/>
                     <Setter TargetName="Fill" Property="TextElement.Foreground" Value="{StaticResource MutedText}"/>
@@ -218,9 +160,6 @@
             </ControlTemplate.Triggers>
         </ControlTemplate>
 
-        <!-- Which of the two an item gets is decided by where it sits, which is
-             what MenuItem.Role reports. The default covers TopLevelItem - Find
-             and Replace, which are on the bar but open nothing. -->
         <Style TargetType="MenuItem">
             <Setter Property="FontFamily" Value="{StaticResource AppFont}"/>
             <Setter Property="Foreground" Value="{StaticResource PrimaryText}"/>
@@ -236,9 +175,6 @@
             </Style.Triggers>
         </Style>
 
-        <!-- The context menu is hosted in its own popup rather than in the window,
-             so it inherits none of the window's chrome and has to be dressed
-             itself or it opens as a light-themed strip over a dark editor. -->
         <Style TargetType="ContextMenu">
             <Setter Property="FontFamily" Value="{StaticResource AppFont}"/>
             <Setter Property="Foreground" Value="{StaticResource PrimaryText}"/>
@@ -248,9 +184,6 @@
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="ContextMenu">
-                        <!-- The same surface a dropdown gets, so the menu the
-                             editor opens and the menus the bar opens are the same
-                             object seen twice rather than two near-misses. -->
                         <Border Style="{StaticResource MenuSurfaceStyle}">
                             <StackPanel IsItemsHost="True" Orientation="Vertical"
                                         KeyboardNavigation.DirectionalNavigation="Cycle"/>
@@ -260,24 +193,16 @@
             </Setter>
         </Style>
 
-        <!-- Keyed on SeparatorStyleKey rather than by type: menus look their
-             separators up under that key, so a plain TargetType style would be
-             ignored and the default light rule drawn instead. -->
         <Style x:Key="{x:Static MenuItem.SeparatorStyleKey}" TargetType="Separator">
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="Separator">
-                        <!-- Runs almost the full width of the menu, with only
-                             enough air above and below to group what it divides. -->
                         <Rectangle Height="1" Margin="1,4" Fill="{StaticResource PanelBorder}"/>
                     </ControlTemplate>
                 </Setter.Value>
             </Setter>
         </Style>
 
-        <!-- The × on a tab: always there on the active tab, held back in the same
-             grey the rest of the chrome rests in, and coming forward with a fill
-             behind it only once the pointer is on it. -->
         <Style x:Key="TabCloseStyle" TargetType="Button">
             <Setter Property="Width" Value="18"/>
             <Setter Property="Height" Value="18"/>
@@ -303,14 +228,6 @@
             </Setter>
         </Style>
 
-        <!-- A tab, as the new VS Code draws one: a rounded card floating on the
-             strip rather than a wedge cut out of it. The strip is the editor's own
-             colour and the card sits a shade above it, which is what gives it the
-             look of a button.
-
-             Templated over a FileTab rather than assembled in code, so the day
-             there are several of them the only thing that changes is how many
-             items the strip is given. -->
         <DataTemplate x:Key="FileTabTemplate" DataType="{x:Type local:FileTab}">
             <Border x:Name="Tab" CornerRadius="5" Margin="0,5,4,5" Padding="10,0,6,0"
                     Background="Transparent" ToolTip="{Binding FullPath}"
@@ -325,10 +242,6 @@
 
                     <Button Style="{StaticResource TabCloseStyle}" Click="TabClose_Click">
                         <Grid>
-                            <!-- The unsaved dot stands where the × stands, and gives
-                                 the place back as soon as the pointer arrives - so a
-                                 tab never says "unsaved" and "close me" at once, and
-                                 the two never fight over the same few pixels. -->
                             <TextBlock x:Name="CloseGlyph" Text="&#xE8BB;"
                                        FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="8"
                                        HorizontalAlignment="Center" VerticalAlignment="Center"/>
@@ -349,7 +262,6 @@
                     <Setter TargetName="DirtyDot" Property="Visibility" Value="Visible"/>
                 </DataTrigger>
 
-                <!-- Last, so it wins over the dot above. -->
                 <Trigger SourceName="Tab" Property="IsMouseOver" Value="True">
                     <Setter TargetName="CloseGlyph" Property="Visibility" Value="Visible"/>
                     <Setter TargetName="DirtyDot" Property="Visibility" Value="Collapsed"/>
@@ -380,21 +292,11 @@
             <Setter Property="Margin" Value="12,0"/>
         </Style>
 
-        <!-- The caption buttons, to the measurements Windows uses for its own:
-             46 units wide, the full height of the bar so they meet the top edge,
-             no gap between them and no rounding. The glyphs are the ones the
-             shell draws - Segoe Fluent Icons on Windows 11, falling back to the
-             Segoe MDL2 Assets of Windows 10 - rather than the em dash and
-             multiplication sign that were standing in for them, which is most of
-             what made the old ones read as hand-drawn. -->
         <Style x:Key="CaptionButtonStyle" TargetType="Button">
             <Setter Property="Width" Value="46"/>
             <Setter Property="VerticalAlignment" Value="Stretch"/>
             <Setter Property="Background" Value="Transparent"/>
 
-            <!-- Held back at rest and brought forward under the pointer, the same
-                 as the menu items across the bar from them. The close button
-                 inherits this and paints its own white over the red. -->
             <Setter Property="Foreground" Value="{StaticResource SecondaryText}"/>
             <Setter Property="BorderThickness" Value="0"/>
             <Setter Property="FontFamily" Value="Segoe Fluent Icons, Segoe MDL2 Assets"/>
@@ -422,9 +324,6 @@
             </Setter>
         </Style>
 
-        <!-- Set in the style rather than on the button, because a value written
-             on the element itself would outrank the trigger below and the glyph
-             would never change back. -->
         <Style x:Key="MaximizeButtonStyle" TargetType="Button" BasedOn="{StaticResource CaptionButtonStyle}">
             <Setter Property="Content" Value="&#xE922;"/>
             <Style.Triggers>
@@ -434,8 +333,6 @@
             </Style.Triggers>
         </Style>
 
-        <!-- The one caption button Windows colours: red on hover, lighter while
-             held, and the glyph stays white through both. -->
         <Style x:Key="CloseButtonStyle" TargetType="Button" BasedOn="{StaticResource CaptionButtonStyle}">
             <Setter Property="Template">
                 <Setter.Value>
@@ -484,11 +381,6 @@
             </Grid.ColumnDefinitions>
             <StackPanel Orientation="Horizontal" VerticalAlignment="Stretch" Margin="10,0,0,0">
 
-                <!-- DecodePixelWidth picks the 16-pixel frame out of the icon
-                     rather than taking the largest one and shrinking it, which is
-                     what makes a multi-size .ico look soft at this size. It
-                     handles no mouse events, so the click still reaches the bar
-                     underneath and the window can be dragged by its icon. -->
                 <Image Width="16" Height="16" VerticalAlignment="Center" Margin="0,0,10,0"
                        RenderOptions.BitmapScalingMode="HighQuality">
                     <Image.Source>
@@ -539,10 +431,6 @@
                     <MenuItem x:Name="ReplaceMenu" Header="Replace" Click="Replace_Click"/>
                 </Menu>
 
-                <!-- The separator that used to stand between the menus and the
-                     file name went with the file name. The popups below take no
-                     room in this row - they are their own windows - so leaving it
-                     put a divider after the last menu with nothing beyond it. -->
 
                 <Popup x:Name="FindPopup" PlacementTarget="{Binding ElementName=FindMenu}" Placement="Bottom"
                        StaysOpen="True" AllowsTransparency="True" PopupAnimation="Fade">
@@ -646,9 +534,6 @@
 
             </StackPanel>
 
-            <!-- Flush against the top and right edges, with no margin of their
-                 own: on Windows these run into the corner of the window, and a
-                 gap there is the first thing that reads as wrong. -->
             <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Stretch">
                 <Button Content="&#xE921;" Click="Minimize_Click" Style="{StaticResource CaptionButtonStyle}"
                         ToolTip="Minimize"/>
@@ -659,10 +544,6 @@
             </StackPanel>
         </Grid>
 
-        <!-- The tab strip. One tab today, and an ItemsControl rather than a hand
-             built row so that stays a fact about the document model and not about
-             the chrome. The strip carries the editor's own colour, which is what
-             leaves the tab card standing above it. -->
         <Border Grid.Row="1" Background="{StaticResource WindowBackground}">
             <ItemsControl x:Name="TabStrip" Margin="12,0,0,0"
                           ItemTemplate="{StaticResource FileTabTemplate}">
@@ -674,14 +555,6 @@
             </ItemsControl>
         </Border>
 
-        <!-- The path, broken into its parts, under the bar rather than in the
-             footer. A path reads better as a trail than as one long string, and
-             it belongs at the top beside the thing it names.
-
-             Carried in a ScrollViewer with no visible bar: a path deeper than the
-             window is wide gets scrolled to its end after every change, so what
-             falls off is the front of the trail and the file's own name is always
-             the part still on screen. -->
         <Border Grid.Row="2" Background="{StaticResource WindowBackground}">
             <ScrollViewer x:Name="BreadcrumbScroll" Focusable="False"
                           SizeChanged="Breadcrumbs_SizeChanged"
@@ -703,9 +576,6 @@
                                     DividerBrush="{StaticResource PanelBorder}"
                                     Visibility="Collapsed"/>
 
-            <!-- CanContentScroll puts the view itself in charge of scrolling, which
-                 is what lets it report an extent derived from the line count rather
-                 than from a measured document. See TextView. -->
             <ScrollViewer x:Name="EditorScroll" Grid.Column="1"
                           CanContentScroll="True"
                           Background="{StaticResource WindowBackground}"
@@ -734,8 +604,6 @@
 
         </Grid>
 
-        <!-- What is left in the footer is what the path was never really with:
-             counts on the left, how the file is written on the right. -->
         <Border Grid.Row="4" Background="{StaticResource ChromeBackground}" BorderBrush="{StaticResource ChromeBorder}" BorderThickness="0,1,0,0">
             <Grid Margin="12,0">
                 <Grid.ColumnDefinitions>

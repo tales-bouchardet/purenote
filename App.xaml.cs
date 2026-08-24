@@ -17,17 +17,6 @@ namespace PureNote
             DispatcherUnhandledException += OnUnhandledException;
         }
 
-        // The boxes and buttons in Find and Replace come from WPF-UI, and they
-        // take their accent from brushes its own dictionaries resolve when those
-        // dictionaries are parsed. A StaticResource inside that dictionary is
-        // bound to the brush that was there at the time, so replacing the key
-        // afterwards - which is what the accent overrides in App.xaml do - never
-        // reaches them.
-        //
-        // Measured rather than assumed: with all twelve accent keys overridden to
-        // amber, a TextBox, a RadioButton and a CheckBox still rendered in the
-        // system blue. This is the door WPF-UI leaves for changing them, and it
-        // is the only one that works.
         private void ApplyAccent()
         {
             SolidColorBrush accent = Resources["Accent"] as SolidColorBrush;
@@ -36,8 +25,6 @@ namespace PureNote
             ApplicationAccentColorManager.Apply(accent.Color, ApplicationTheme.Dark);
         }
 
-        // A crash would otherwise take the unsaved buffer with it silently. Dump
-        // whatever is in the editor to disk first, then tell the user where it went.
         private void OnUnhandledException(object sender, DispatcherUnhandledExceptionEventArgs e)
         {
             string recoveryPath = TryWriteRecoveryFile();

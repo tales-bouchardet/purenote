@@ -10,8 +10,6 @@ namespace PureNote
             New_Click(sender, new RoutedEventArgs());
         }
 
-        // A new document opens in a tab of its own rather than over the one in
-        // front. Nothing is discarded, so nothing has to be confirmed.
         private void New_Click(object sender, RoutedEventArgs e)
         {
             bool discardingLarge = IsLargeDocument;
@@ -45,9 +43,6 @@ namespace PureNote
 
             Editor.Focus();
 
-            // The one moment a large document is known to have been let go with
-            // nothing waiting on the latency. Compacting here is what stops the
-            // space it occupied from being unusable to the next large file.
             if (discardingLarge) CompactLargeObjectHeap();
         }
     }

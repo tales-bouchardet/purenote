@@ -10,35 +10,10 @@ namespace PureNote
 
         private static readonly Encoding Utf8Bom = new UTF8Encoding(true);
 
-        // What a file is read as when it carries no BOM and is not valid UTF-8.
-        //
-        // Deliberately not UTF-8. Decoding non-UTF-8 bytes as UTF-8 turns every
-        // byte the decoder cannot make sense of into U+FFFD inside the document,
-        // and U+FFFD is a character UTF-8 holds perfectly well - so CanRepresent
-        // says yes, nothing warns on the way out, and the save writes the
-        // replacement character back to disk. A Windows-1252 file the user only
-        // scrolled through comes back with every accented byte destroyed.
-        //
-        // Windows-1252 maps all 256 byte values to distinct characters and back
-        // again, so a wrong guess here costs a wrong-looking accent rather than
-        // the byte itself: whatever was read is what gets written. It is also
-        // the likeliest thing for a non-UTF-8 file on a Windows machine to be,
-        // and mojibake is visible in a way a lone U+FFFD in good text is not.
         public static readonly Encoding Ansi = Encoding.GetEncoding(1252);
 
         private const int Step = 1 << 20;
 
-        // Never returns null: bytes that match no BOM and are not valid UTF-8
-        // are read as Ansi rather than refused, so opening always goes ahead.
-        // The encoding menu is there for the cases the guess gets wrong.
-        //
-        // Reads the file rather than an array of it. Nothing here is ever the
-        // size of the document: the mark is four bytes, and the validity check
-        // is a state machine over a buffer it reuses.
-        //
-        // Every encoding this can return carries its own preamble, and it is
-        // only returned when that preamble was actually seen - so the caller can
-        // ask the encoding how many bytes to skip rather than being told twice.
         public static Encoding Detect(Stream stream)
         {
             byte[] head = new byte[4];
@@ -63,8 +38,6 @@ namespace PureNote
             return null;
         }
 
-        // A stream is allowed to hand back less than it was asked for without
-        // being at its end, so a single Read is not a way to fill a buffer.
         private static int ReadFully(Stream stream, byte[] buffer, int count)
         {
             int total = 0;
@@ -80,18 +53,6 @@ namespace PureNote
             return total;
         }
 
-        // Whether every character in the document survives this encoding.
-        //
-        // Walked in chunks through a stateful Encoder, and counted rather than
-        // encoded: GetByteCount runs the same encoder over the same characters
-        // and trips the same fallback, but never builds the output. The whole
-        // check costs one 64 KB buffer regardless of how large the document is,
-        // where asking the same question with GetBytes over a string of the
-        // document meant two copies of it to get back a yes or a no.
-        //
-        // The Encoder carries its state between chunks, so a surrogate pair split
-        // across a chunk boundary is completed by the next one rather than
-        // reported as a character the encoding cannot hold.
         internal static bool CanRepresent(TextDocument document, Encoding encoding)
         {
             if (document == null || document.Length == 0) return true;
@@ -168,10 +129,6 @@ namespace PureNote
             return true;
         }
 
-        // Carried across buffer boundaries as a count of continuation bytes still
-        // owed, which is what lets this walk the file a megabyte at a time
-        // instead of needing all of it at once. A file that ends owing one is
-        // truncated mid-character, and so is not valid UTF-8.
         private static bool IsValidUtf8(Stream stream)
         {
             byte[] buffer = new byte[Step];
