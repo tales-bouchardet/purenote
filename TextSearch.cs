@@ -17,16 +17,10 @@ namespace PureNote
             if (termLength > length) return;
 
             char[] needle = BuildNeedle(term, exact);
-            char first = needle[0];
 
             for (int i = 0; i + termLength <= length; i++)
             {
-                if (CharAt(document, i, exact) != first) continue;
-
-                int j = 1;
-                while (j < termLength && CharAt(document, i + j, exact) == needle[j]) j++;
-
-                if (j < termLength) continue;
+                if (!MatchesAt(document, i, needle, exact)) continue;
 
                 results.Add(i);
 
@@ -45,19 +39,23 @@ namespace PureNote
             if (startIndex + termLength > length) return -1;
 
             char[] needle = BuildNeedle(term, exact);
-            char first = needle[0];
 
             for (int i = startIndex; i + termLength <= length; i++)
             {
-                if (CharAt(document, i, exact) != first) continue;
-
-                int j = 1;
-                while (j < termLength && CharAt(document, i + j, exact) == needle[j]) j++;
-
-                if (j == termLength) return i;
+                if (MatchesAt(document, i, needle, exact)) return i;
             }
 
             return -1;
+        }
+
+        private static bool MatchesAt(TextDocument document, int offset, char[] needle, bool exact)
+        {
+            for (int j = 0; j < needle.Length; j++)
+            {
+                if (CharAt(document, offset + j, exact) != needle[j]) return false;
+            }
+
+            return true;
         }
 
         private static char[] BuildNeedle(string term, bool exact)

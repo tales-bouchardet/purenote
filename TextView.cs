@@ -55,16 +55,13 @@ namespace PureNote
 
         private void RaiseViewChanged()
         {
-            EventHandler handler = ViewChanged;
-            if (handler != null) handler(this, EventArgs.Empty);
+            ViewChanged?.Invoke(this, EventArgs.Empty);
         }
 
         public TextDocument Document
         {
             get { return _document; }
         }
-
-        public bool IsReadOnly { get; set; }
 
         public Brush Background { get; set; }
         public Brush Foreground { get; set; }
@@ -272,14 +269,12 @@ namespace PureNote
 
         private void RaiseDocumentChanged()
         {
-            EventHandler handler = DocumentChanged;
-            if (handler != null) handler(this, EventArgs.Empty);
+            DocumentChanged?.Invoke(this, EventArgs.Empty);
         }
 
         private void RaiseCaretChanged()
         {
-            EventHandler handler = CaretChanged;
-            if (handler != null) handler(this, EventArgs.Empty);
+            CaretChanged?.Invoke(this, EventArgs.Empty);
         }
 
 
@@ -648,18 +643,6 @@ namespace PureNote
         }
 
 
-        public Point GetPointForOffset(int offset)
-        {
-            TextLineRenderer renderer = Renderer;
-
-            int line = _document.GetLineFromOffset(offset);
-            VisibleLine v = GetVisibleLine(line);
-
-            return new Point(
-                Padding.Left - _horizontalOffset + ColumnX(renderer, v, ColumnOf(v, offset - v.Start)),
-                line * renderer.LineHeight - _verticalOffset + Padding.Top);
-        }
-
         public int GetOffsetFromPoint(Point point)
         {
             TextLineRenderer renderer = Renderer;
@@ -754,12 +737,6 @@ namespace PureNote
         private void InvalidateScrollInfo()
         {
             if (ScrollOwner != null) ScrollOwner.InvalidateScrollInfo();
-        }
-
-        public void ScrollToLine(int line)
-        {
-            line = Clamp(line, 0, _document.LineCount - 1);
-            SetVerticalOffset(line * LineHeight);
         }
 
         public void ScrollIntoView(int offset)

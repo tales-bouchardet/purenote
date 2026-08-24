@@ -28,7 +28,7 @@ namespace PureNote
         {
             base.OnTextInput(e);
 
-            if (IsReadOnly || string.IsNullOrEmpty(e.Text)) return;
+            if (string.IsNullOrEmpty(e.Text)) return;
 
             if (e.Text.Length == 1 && e.Text[0] < ' ' && e.Text[0] != '\t') return;
 
@@ -95,13 +95,11 @@ namespace PureNote
                     break;
 
                 case Key.Return:
-                    if (IsReadOnly) return;
                     EndTypingRun();
                     InsertText("\n");
                     break;
 
                 case Key.Tab:
-                    if (IsReadOnly) return;
                     EndTypingRun();
                     InsertText("\t");
                     break;
@@ -320,7 +318,7 @@ namespace PureNote
 
         public void Cut()
         {
-            if (SelectionLength == 0 || IsReadOnly) return;
+            if (SelectionLength == 0) return;
 
             if (PutOnClipboard(SelectedText)) DeleteSelection();
         }
@@ -343,8 +341,6 @@ namespace PureNote
 
         public void Paste()
         {
-            if (IsReadOnly) return;
-
             string incoming;
 
             try

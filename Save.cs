@@ -100,24 +100,10 @@ namespace PureNote
             }
             finally
             {
-                DeleteIfExists(temp);
+                Delete(temp);
             }
 
             return false;
-        }
-
-        private static void DeleteIfExists(string path)
-        {
-            try
-            {
-                if (File.Exists(path)) File.Delete(path);
-            }
-            catch (IOException)
-            {
-            }
-            catch (UnauthorizedAccessException)
-            {
-            }
         }
 
         private void ReportSaveDenied(string path)

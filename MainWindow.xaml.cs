@@ -21,14 +21,21 @@ namespace PureNote
             return true;
         }
 
-        public MainWindow()
+        public MainWindow() : this(null)
+        {
+        }
+
+        internal MainWindow(FileTab seedTab)
         {
             InitializeComponent();
+
+            OpenWindows.Add(this);
+            Closed += (s, e) => OpenWindows.Remove(this);
 
             SimplifiedMatchRadio.IsChecked = true;
             ReplaceSimpleRadio.IsChecked = true;
 
-            InitialiseTabs();
+            InitialiseTabs(seedTab);
             ElevationText.Text = ElevationDetector.Detect();
             SetEncodingChecked(_currentEncoding);
             SetLineEndingChecked(_lineEnding);
@@ -53,6 +60,8 @@ namespace PureNote
 
             Loaded += MainWindow_Loaded;
             SourceInitialized += Window_SourceInitialized;
+
+            if (seedTab == null) Loaded += LoadStartupArgs;
         }
 
         private void MainWindow_Loaded(object sender, RoutedEventArgs e)
@@ -60,6 +69,11 @@ namespace PureNote
             Loaded -= MainWindow_Loaded;
 
             Editor.Focus();
+        }
+
+        private void LoadStartupArgs(object sender, RoutedEventArgs e)
+        {
+            Loaded -= LoadStartupArgs;
 
             string[] args = Environment.GetCommandLineArgs();
 

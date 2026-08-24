@@ -107,8 +107,6 @@ namespace PureNote
 
         public void ReplaceRange(int offset, int length, string text)
         {
-            if (IsReadOnly) return;
-
             offset = Clamp(offset, 0, _document.Length);
             length = Clamp(length, 0, _document.Length - offset);
 
@@ -178,8 +176,7 @@ namespace PureNote
 
         private void RaiseEditRefused()
         {
-            EventHandler handler = EditRefused;
-            if (handler != null) handler(this, EventArgs.Empty);
+            EditRefused?.Invoke(this, EventArgs.Empty);
         }
 
         private void Apply(int offset, int length, string text)

@@ -87,7 +87,8 @@ namespace PureNote
             if (_spillFolder == null)
             {
                 _spillFolder = Path.Combine(Path.GetTempPath(),
-                    "purenote-session-" + System.Diagnostics.Process.GetCurrentProcess().Id);
+                    "purenote-session-" + System.Diagnostics.Process.GetCurrentProcess().Id
+                    + "-" + Guid.NewGuid().ToString("N"));
 
                 Directory.CreateDirectory(_spillFolder);
             }

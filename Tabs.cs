@@ -17,12 +17,24 @@ namespace PureNote
 
         private bool _switching;
 
-        private void InitialiseTabs()
+        private void InitialiseTabs(FileTab seed)
         {
             TabStrip.ItemsSource = _tabs;
 
-            _active = NewTab(null, EncodingDetector.Utf8NoBom, LineEndings.Crlf);
-            _active.State = Editor.CaptureState();
+            if (seed == null)
+            {
+                _active = NewTab(null, EncodingDetector.Utf8NoBom, LineEndings.Crlf);
+                _active.State = Editor.CaptureState();
+            }
+            else
+            {
+                _tabs.Add(seed);
+                _active = seed;
+
+                if (seed.IsEvicted) Restore(seed);
+                Editor.RestoreState(seed.State);
+            }
+
             _active.IsActive = true;
 
             StartEvictionSweep();
@@ -71,13 +83,20 @@ namespace PureNote
 
         private void Tab_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
         {
-            FileTab tab = ((FrameworkElement)sender).DataContext as FileTab;
+            FrameworkElement element = (FrameworkElement)sender;
+            FileTab tab = element.DataContext as FileTab;
+            if (tab == null) return;
 
-            if (tab != null && tab != _active)
-            {
-                Activate(tab);
-                e.Handled = true;
-            }
+            if (tab != _active) Activate(tab);
+
+            _draggingTab = tab;
+            _draggingElement = element;
+            _dragStartInStrip = e.GetPosition(TabStrip);
+            _dragArmed = false;
+
+            element.CaptureMouse();
+
+            e.Handled = true;
         }
 
         private void Activate(FileTab tab)
@@ -157,11 +176,23 @@ namespace PureNote
             if (tab.IsDirty && !ConfirmDiscardTab(tab)) return;
 
             DiscardSpill(tab);
+            tab.State = null;
 
+            RemoveTab(tab, closeWindowIfEmpty: false);
+        }
+
+        private void DetachTabForTransfer(FileTab tab)
+        {
+            if (tab == _active) Detach(_active);
+
+            RemoveTab(tab, closeWindowIfEmpty: true);
+        }
+
+        private void RemoveTab(FileTab tab, bool closeWindowIfEmpty)
+        {
             bool wasActive = tab == _active;
             int index = _tabs.IndexOf(tab);
 
-            tab.State = null;
             _tabs.Remove(tab);
 
             if (!wasActive) return;
@@ -172,6 +203,12 @@ namespace PureNote
             {
                 Activate(_tabs[Math.Min(index, _tabs.Count - 1)]);
                 Editor.Focus();
+                return;
+            }
+
+            if (closeWindowIfEmpty)
+            {
+                Close();
                 return;
             }
 
