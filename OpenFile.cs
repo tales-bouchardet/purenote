@@ -26,6 +26,14 @@ namespace PureNote
             }
         }
 
+        internal void OpenFromExternal(string path)
+        {
+            if (WindowState == WindowState.Minimized) WindowState = WindowState.Normal;
+
+            Activate();
+            LoadFile(path);
+        }
+
         private const int StreamBuffer = 4096;
 
         private void LoadFile(string path)

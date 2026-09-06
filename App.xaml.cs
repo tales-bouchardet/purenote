@@ -13,8 +13,21 @@ namespace PureNote
         {
             base.OnStartup(e);
 
+            string[] paths = Array.FindAll(e.Args, File.Exists);
+
+            if (!AcquireInstanceLock())
+            {
+                if (paths.Length > 0) TrySendToRunningInstance(paths);
+                Shutdown();
+                return;
+            }
+
+            StartPipeServer();
+
             ApplyAccent();
             DispatcherUnhandledException += OnUnhandledException;
+
+            new MainWindow().Show();
         }
 
         private void ApplyAccent()
