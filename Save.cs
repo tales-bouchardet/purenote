@@ -66,18 +66,24 @@ namespace PureNote
 
             try
             {
-                using (StreamWriter writer = new StreamWriter(temp, false, _currentEncoding))
+                try
                 {
-                    Editor.Document.WriteTo(writer, _lineEnding);
-                }
+                    WriteTo(temp);
 
-                if (File.Exists(path))
-                {
-                    File.Replace(temp, path, null);
+                    if (File.Exists(path))
+                    {
+                        File.Replace(temp, path, null);
+                    }
+                    else
+                    {
+                        File.Move(temp, path);
+                    }
                 }
-                else
+                catch (UnauthorizedAccessException)
                 {
-                    File.Move(temp, path);
+                    // Network shares often allow modifying a file but not creating/renaming
+                    // siblings (temp + ReplaceFile). Fall back to writing in place, like Notepad.
+                    WriteTo(path);
                 }
 
                 return true;
@@ -104,6 +110,14 @@ namespace PureNote
             }
 
             return false;
+        }
+
+        private void WriteTo(string path)
+        {
+            using (StreamWriter writer = new StreamWriter(path, false, _currentEncoding))
+            {
+                Editor.Document.WriteTo(writer, _lineEnding);
+            }
         }
 
         private void ReportSaveDenied(string path)
